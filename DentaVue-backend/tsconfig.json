@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    // No "rootDir" here: this config is what `typecheck` and eslint load, and it
+    // includes tests/, which live outside src/ — a rootDir would reject them
+    // (TS6059). rootDir is an emit concern, so it sits in tsconfig.build.json,
+    // which excludes tests and is the only config that emits.
+    "outDir": "./dist",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "sourceMap": true,
+    "declaration": false,
+    // No "baseUrl": it is deprecated and stops working in TypeScript 7. Since
+    // TS 4.1 "paths" resolves relative to this file without it, and tsc-alias
+    // falls back to "rootDir" (set in tsconfig.build.json) when rewriting these
+    // at build time.
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  // rootDir lives here, not in the base config: this is the only config that
+  // emits, and it excludes tests, so rootDir can safely assert "everything is
+  // under src". tsc-alias reads it to rewrite @/* imports in the output. The
+  // base config omits it so `typecheck` can include tests/ without TS6059.
+  "compilerOptions": {
+    "rootDir": "./src"
+  },
+  // `scripts` is excluded alongside tests: it is a developer tool (see
+  // scripts/tryGemini.ts), run through tsx, never shipped in dist.
+  "exclude": ["node_modules", "dist", "tests", "scripts", "**/*.test.ts"]
+}
