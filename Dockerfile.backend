@@ -4,11 +4,11 @@ FROM node:20-alpine AS base
 WORKDIR /app
 
 FROM base AS deps
-COPY "DentaVue-backend (1)/Lumora-backend-dentavue-develop/package*.json" ./
+COPY "DentaVue-backend/package*.json" ./
 RUN npm ci
 
 FROM deps AS build
-COPY "DentaVue-backend (1)/Lumora-backend-dentavue-develop" ./
+COPY "DentaVue-backend" ./
 RUN npm run build
 
 FROM node:20-alpine AS runtime

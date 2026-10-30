@@ -4,7 +4,7 @@ FROM node:20-alpine AS base
 WORKDIR /app
 
 FROM base AS deps
-COPY "DentaVue-frontend (1)/Lumora-Web-dentavue-develop/package*.json" ./
+COPY "DentaVue-frontend/package*.json" ./
 RUN npm ci
 
 FROM deps AS build
@@ -12,7 +12,7 @@ ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/v1
 ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
-COPY "DentaVue-frontend (1)/Lumora-Web-dentavue-develop" ./
+COPY "DentaVue-frontend" ./
 RUN npm run build
 
 FROM node:20-alpine AS runtime

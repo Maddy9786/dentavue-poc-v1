@@ -161,7 +161,7 @@ If you want to develop without rebuilding every time, you can run the apps manua
 From the backend folder:
 
 ```bash
-cd "DentaVue-backend (1)\Lumora-backend-dentavue-develop"
+cd "DentaVue-backend"
 npm install
 npm run dev
 ```
@@ -177,7 +177,7 @@ http://localhost:4000/v1
 From the frontend folder:
 
 ```bash
-cd "DentaVue-frontend (1)\Lumora-Web-dentavue-develop"
+cd "DentaVue-frontend"
 npm install
 npm run dev
 ```
@@ -193,7 +193,7 @@ http://localhost:3000
 Backend:
 
 ```bash
-cd "DentaVue-backend (1)\Lumora-backend-dentavue-develop"
+cd "DentaVue-backend"
 npm install
 npm run build
 npm start
@@ -202,7 +202,7 @@ npm start
 Frontend:
 
 ```bash
-cd "DentaVue-frontend (1)\Lumora-Web-dentavue-develop"
+cd "DentaVue-frontend"
 npm install
 npm run build
 npm run start
@@ -252,8 +252,8 @@ docker run -d -p 3000:3000 --name dentavue-frontend dentavue-frontend
 
 Make sure the folder names in the Dockerfiles match exactly:
 
-- `DentaVue-backend (1)/Lumora-backend-dentavue-develop`
-- `DentaVue-frontend (1)/Lumora-Web-dentavue-develop`
+- `DentaVue-backend`
+- `DentaVue-frontend`
 
 ### Issue: backend shows missing Supabase environment variables
 

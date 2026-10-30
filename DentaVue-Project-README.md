@@ -2,8 +2,8 @@
 
 This document captures the current architecture, runtime flow, and deployment approach for the DentaVue MVP that is split into two repos:
 
-- Backend: `DentaVue-backend (1)/Lumora-backend-dentavue-develop`
-- Frontend: `DentaVue-frontend (1)/Lumora-Web-dentavue-develop`
+- Backend: `DentaVue-backend`
+- Frontend: `DentaVue-frontend`
 
 The project is intentionally organized as a browser app plus a single API service. The browser never talks directly to Supabase, and the backend is the only layer that owns Supabase credentials and auth logic.
 
