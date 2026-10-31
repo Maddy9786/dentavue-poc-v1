@@ -11,10 +11,9 @@ out/
 dist/
 build/
 
-# Environment variables
-.env
-.env.*
-!.env.example
+Environment variables
+
+
 
 # Logs
 *.log
