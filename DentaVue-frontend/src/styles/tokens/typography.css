@@ -1,0 +1,114 @@
+/**
+ * DentaVue — typography tokens
+ *
+ * Mirrors the two-tier model in colors.css: primitives in :root, semantic roles
+ * in @theme (which is what generates the Tailwind utilities).
+ *
+ * FONT SUBSTITUTION — the design specifies SF Pro Rounded; the app ships Nunito.
+ * Apple's licence forbids embedding SF fonts in a website ("you may not use the
+ * Apple Font to create, develop, display or otherwise distribute any ... website
+ * content"), so it cannot legally be self-hosted. The no-embed workaround, the
+ * `ui-rounded` generic, only resolves in Safari — and on macOS it falls back to
+ * non-rounded SF Pro, so only iOS would ever render the intended face. Nunito is
+ * SIL OFL, rounded, and renders identically on every platform. `ui-rounded` is
+ * kept in the stack purely as a fallback if the webfont fails to load.
+ *
+ * SCALE — taken verbatim from the design (20/16/14/12/10px), expressed in rem so
+ * the whole scale honours the reader's browser font-size setting. 1rem = 16px at
+ * default, so the px comments below hold only at that default — which is the
+ * point: a patient who sets larger text gets larger text.
+ *
+ *   NOTE the design labels "H1" at both 20px and 16px. Read here as two distinct
+ *   roles — h1-lg for page titles, h1 for section headings — since one name
+ *   cannot map to two sizes. Confirm with design.
+ *
+ *   NOTE body text at 12px is small for a health app whose users read
+ *   appointment times and medical history, and the values come from 375px-wide
+ *   mobile frames — on desktop they will read smaller still. Flagged, not
+ *   changed; see CLAUDE.md.
+ *
+ * LINE HEIGHTS were absent from the type-scale sheet and were placeholders until
+ * the sign-in screen spec supplied real values (20→30px, 14→21px, 24→24px).
+ * Those are now in. Sizes with no measured value keep a conventional default —
+ * they are marked below.
+ */
+
+/* ============================================================================
+   Tier 1 — Primitives
+   ========================================================================== */
+
+:root {
+  /* Weights. Nunito is a variable font, so every value in 200–1000 is live —
+     but the design only sanctions these three. */
+  --palette-weight-regular: 400;
+  --palette-weight-medium: 500;
+  --palette-weight-semibold: 600;
+}
+
+/* ============================================================================
+   Tier 2 — Semantic roles → Tailwind utilities
+   ========================================================================== */
+
+/* `inline` is required here: --font-app is injected by next/font onto <html>
+   via className, so Tailwind must bake the reference into the utility rather
+   than resolve it at build time.
+
+   --font-app is deliberately generic: the typeface is chosen in src/lib/fonts.ts
+   and nothing here names it, so swapping the font touches that one file. */
+@theme inline {
+  --font-sans: var(--font-app), ui-rounded, system-ui, -apple-system, 'Segoe UI', Roboto,
+    sans-serif;
+}
+
+@theme {
+  /* Font sizes. Each --text-* pairs with a --text-*--line-height that Tailwind
+     applies automatically, so `text-body` sets size AND leading in one utility.
+     Weight stays separate (font-medium etc.) because the design pairs all three
+     weights with every size. */
+
+  /* 24px / 24px — screen titles ("Sign in", "Check Your Messages").
+     Added from the sign-in screen spec; it was absent from the type-scale sheet.
+     Line-height 1 is the designed value and is safe because this size is only
+     used for short single-line titles. If a title ever wraps, override with
+     `leading-tight` rather than changing this. */
+  --text-h1-xl: 1.5rem;
+  --text-h1-xl--line-height: 1;
+
+  /* H1 / 20px — page titles and lead paragraphs.
+     Line-height 1.5 is the designed value (20px → 30px). */
+  --text-h1-lg: 1.25rem;
+  --text-h1-lg--line-height: 1.5;
+
+  /* H1 / 16px — section headings and control labels.
+     The screen spec gives line-height 100% for this size, but only ever on
+     single-line button labels. Baking 1 into the scale would cramp any 16px
+     paragraph, so the scale keeps a readable 1.4 and single-line labels opt in
+     with `leading-none` (see components/ui/Button.tsx). */
+  --text-h1: 1rem;
+  --text-h1--line-height: 1.4;
+
+  /* H2 / 14px — subsections, helper and secondary text.
+     Line-height 1.5 is the designed value (14px → 21px). */
+  --text-h2: 0.875rem;
+  --text-h2--line-height: 1.5;
+
+  /* Body / 12px — default copy. semibold · medium · regular */
+  --text-body: 0.75rem;
+  --text-body--line-height: 1.5;
+
+  /* Navigation / 10px — tab bars, captions. semibold · medium · regular */
+  --text-nav: 0.625rem;
+  --text-nav--line-height: 1.4;
+
+  /* Weights. Tailwind already ships font-medium (500) and font-semibold (600);
+     --font-weight-regular is declared so `font-regular` matches the vocabulary
+     the design uses, rather than forcing devs to remember it is `font-normal`. */
+  --font-weight-regular: var(--palette-weight-regular);
+  --font-weight-medium: var(--palette-weight-medium);
+  --font-weight-semibold: var(--palette-weight-semibold);
+
+  /* Letter spacing. The signup spec asks for -2% on the title, the terms copy
+     and the footer. Overrides Tailwind's own tracking-tight (-0.025em) so the
+     utility means what the design means. */
+  --tracking-tight: -0.02em;
+}

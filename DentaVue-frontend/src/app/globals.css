@@ -1,0 +1,102 @@
+/*
+ * Global stylesheet.
+ *
+ * Colour and type live in the token files, not here. Tailwind v4 is configured
+ * in CSS — there is no tailwind.config.js — so the @theme blocks inside those
+ * token files ARE the Tailwind theme.
+ *
+ * Import order matters: "tailwindcss" first (it brings preflight and the
+ * utilities), then the tokens whose @theme blocks extend it.
+ */
+
+@import 'tailwindcss';
+@import '../styles/tokens/colors.css';
+@import '../styles/tokens/typography.css';
+@import '../styles/tokens/geometry.css';
+@import '../styles/tokens/effects.css';
+
+/*
+ * Every token file must be imported above. An @theme block in a file nobody
+ * imports is dead: Tailwind never sees it, no utilities are generated, and the
+ * classes silently do nothing. Add the import when you add the file.
+ */
+
+/* Preflight already handles the reset (box-sizing, margins). Only app-level
+   defaults belong here. */
+
+/* Always reserve the scrollbar gutter. When a modal opens it locks page scroll
+   (overflow:hidden), which would otherwise remove the scrollbar and shift the
+   centred content and fixed nav sideways for a frame. Reserving the gutter keeps
+   the layout width constant, so opening/closing a modal causes no drift. */
+html {
+  scrollbar-gutter: stable;
+}
+
+/*
+ * WEB SIZE-UP — the single control point.
+ *
+ * The design is drawn for a 375px phone (body text 12px), which reads small on a
+ * desktop. EVERY dimension in the app is rem-based — the type scale, spacing,
+ * radius, icon sizes — so scaling the root font-size scales all of them together,
+ * in proportion, keeping the hierarchy and layout intact. Borders (--stroke-* in
+ * px) stay crisp, and container max-widths (px caps) stay put, so nothing
+ * reflows — the content simply fills them better.
+ *
+ * Change ONLY this percentage to tune the whole web experience. It is expressed
+ * as a percentage of the browser's default, so a reader's own font-size setting
+ * is still honoured on top of it. 100% = mobile sizing unchanged; 112.5% ≈ +2px
+ * on a 16px heading (12px body → 13.5px, 20px title → 22.5px, and so on).
+ *
+ * 850px per the brief; using px (not rem) here keeps this threshold independent
+ * of the scale-up it triggers.
+ */
+@media (min-width: 850px) {
+  html {
+    font-size: 112.5%;
+  }
+}
+
+/*
+ * APP COLUMN WIDTH — the single control point for the content column.
+ *
+ * Every screen centres its content in a column capped at this width (via the
+ * `app-column` utility below, used in place of the old inline
+ * `max-w-[440px] md:max-w-[560px]`). Change these three values to retune the
+ * column at each size; nothing else needs touching.
+ *
+ * Kept in PX, deliberately: the column is a reading-width cap and should not
+ * compound with the ≥850px font scale-up above (a rem value would). The two
+ * breakpoints below 850px reproduce the previous behaviour exactly, so mobile
+ * and tablet are unchanged; 850px widens it for web.
+ */
+:root {
+  --app-column: 440px; /* phone */
+}
+@media (min-width: 768px) {
+  :root {
+    --app-column: 560px; /* tablet — matches the previous md cap */
+  }
+}
+@media (min-width: 850px) {
+  :root {
+    --app-column: 680px; /* web — wider */
+  }
+}
+@utility app-column {
+  max-width: var(--app-column);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Native <button>s use the default arrow cursor; clickable ones should show a
+   pointer. Disabled buttons keep the default. Links already get a pointer. */
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']) {
+  cursor: pointer;
+}

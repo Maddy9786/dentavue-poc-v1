@@ -1,0 +1,29 @@
+/*
+ * Effect tokens — shadows, and any future motion/blur/filter primitives.
+ *
+ * `--shadow-drop` — Figma "Drop shadow" (subtle, for cards / containers):
+ *   X 1, Y 2, Blur 10.9, Spread 0, Color #000 @ 10% opacity.
+ *
+ * `--shadow-inner` — Figma "Inner shadow":
+ *   X 0, Y 1, Blur 4, Spread 0, Color #A19191 @ 27% opacity.
+ *   Note: overrides Tailwind's default `shadow-inner` with the project value.
+ *
+ * `--shadow-elevated` — Figma "Drop shadow" (large, for floating elements
+ * like dropdowns, popovers, modal sheets):
+ *   X 0, Y 10, Blur 30, Spread 0, Color #000 @ 10% opacity.
+ *
+ * `--shadow-website-drop` — Figma "Drop shadow" used across the marketing
+ * website on floating panels (Language / Currency selectors, profile
+ * dropdowns). Slightly softer than `--shadow-drop` — the larger blur
+ * radius gives a more diffused halo:
+ *   X 1, Y 2, Blur 18.9, Spread 0, Color #000 @ 10% opacity.
+ *
+ * Each generates a Tailwind utility (`shadow-drop`, `shadow-inner`,
+ * `shadow-elevated`, `shadow-website-drop`) and is reachable as a CSS var.
+ */
+@theme {
+  --shadow-drop: 1px 2px 10.9px 0 rgb(0 0 0 / 0.1);
+  --shadow-inner: inset 0 1px 4px 0 rgb(161 145 145 / 0.27);
+  --shadow-elevated: 0 10px 30px 0 rgb(0 0 0 / 0.1);
+  --shadow-website-drop: 1px 2px 18.9px 0 rgb(0 0 0 / 0.1);
+}

@@ -1,0 +1,184 @@
+/**
+ * DentaVue — colour tokens
+ *
+ * The single source of colour for the whole app. Components must never hardcode
+ * a hex value; use a Tailwind utility generated from the semantic tier below.
+ *
+ * Two tiers:
+ *   Tier 1 (--palette-*)  raw values from the design system, in plain :root.
+ *                         They carry a value but no meaning, generate no
+ *                         utilities, and are never referenced by a component.
+ *   Tier 2 (--color-*)    semantic roles, in @theme. Tailwind turns each into
+ *                         utilities (bg-primary, text-foreground, border-border).
+ *                         A palette change — or a dark theme — happens here and
+ *                         nowhere else.
+ *
+ * NAMING — the design has both "Primary" (brand blue) and "Text Primary"
+ * (near-black). Both would claim `text-primary` in Tailwind, where `text-*` sets
+ * colour, so text roles are named `foreground` instead. Map from Figma:
+ *
+ *   Figma label              Token                          Utilities
+ *   ─────────────────────────────────────────────────────────────────────────
+ *   Primary                  --color-primary                bg-primary  text-primary
+ *   Secondary accent         --color-secondary              bg-secondary
+ *   Background               --color-background             bg-background
+ *   Surface                  --color-surface                bg-surface
+ *   Secondary Surface        --color-surface-secondary      bg-surface-secondary
+ *   Stroke / Divider         --color-border                 border-border
+ *   Text Primary             --color-foreground             text-foreground
+ *   Text Secondary           --color-foreground-secondary   text-foreground-secondary
+ *   Text Tertiary            --color-foreground-tertiary    text-foreground-tertiary
+ *   Text on primary          --color-on-primary             text-on-primary
+ *   Success                  --color-success                bg-success  text-success
+ *   Success BG               --color-success-bg             bg-success-bg
+ *   Error                    --color-error                  bg-error    text-error
+ *   Star / Ratings           --color-rating                 text-rating fill-rating
+ *
+ * CONTRAST — every hex here is exactly as designed; no palette value was changed.
+ * Where the design's *pairings* failed WCAG 2.1 AA they were re-paired, not
+ * recoloured (see "Text on fills" below). Each fill has a matching `on-` token
+ * carrying the text colour that passes on it, so using the pair is enough:
+ *
+ *     <button class="bg-primary text-on-primary">   ← 5.73:1, safe
+ *     <button class="bg-primary text-white">        ← 2.89:1, fails
+ *
+ * Ratios in this file are measured with the WCAG 2.1 relative-luminance formula,
+ * not estimated. Re-measure before changing any value.
+ *
+ * One failure could not be re-paired: --color-foreground-tertiary is unusable
+ * for text at any size. See its note below.
+ */
+
+/* ============================================================================
+   Tier 1 — Primitives
+   ========================================================================== */
+
+:root {
+  /* Brand */
+  --palette-blue-500: #3b9df0;
+  --palette-teal-500: #2fb6a0;
+
+  /* Warm neutrals — text hierarchy, background, dividers */
+  --palette-warm-900: #221e19;
+  --palette-warm-600: #736b61;
+  --palette-warm-400: #a89f94;
+  --palette-warm-100: #ece7df;
+  --palette-warm-050: #fbf8f4;
+
+  /* Cool neutral — chat fill / secondary surface */
+  --palette-cool-300: #afb5bb;
+
+  --palette-white: #ffffff;
+
+  /* Semantic hues */
+  --palette-green-500: #34c759;
+  /* NOT from the design — the darkest same-hue green that is legible as text.
+     See --color-success-text below for why it had to exist. */
+  --palette-green-700: #098432;
+  --palette-brown-600: #a05a00;
+  --palette-red-600: #d80027;
+  --palette-yellow-500: #ffc107;
+}
+
+/* ============================================================================
+   Tier 2 — Semantic roles → Tailwind utilities
+   ============================================================================
+   Plain @theme, deliberately NOT `@theme inline`: utilities must resolve through
+   var(--color-*) so a future dark theme can override the role in one selector
+   and have every utility follow. `inline` would bake the palette hex straight
+   into each utility and break that.
+   ========================================================================== */
+
+@theme {
+  /* --- Brand ------------------------------------------------------------ */
+  --color-primary: var(--palette-blue-500);
+  --color-secondary: var(--palette-teal-500);
+
+  /* --- Surfaces --------------------------------------------------------- */
+  /* background is the app canvas; surface is what sits on it (cards, sheets,
+     inputs). */
+  --color-background: var(--palette-warm-050);
+  --color-surface: var(--palette-white);
+  --color-surface-secondary: var(--palette-cool-300);
+  --color-border: var(--palette-warm-100);
+
+  /* --- Text ------------------------------------------------------------- */
+  --color-foreground: var(--palette-warm-900);
+  --color-foreground-secondary: var(--palette-warm-600);
+
+  /* DECORATION ONLY — 2.5:1 on background, 2.6:1 on surface. Fails AA (4.5:1)
+     and fails even the 3:1 large-text/UI floor, so there is no text size at
+     which it is legible enough. Use for non-informational marks only: disabled
+     glyphs, muted icons, decorative rules.
+
+     This tier cannot be rescued. Darkening it to pass AA lands on ~#797066,
+     which is 0.018 lightness from --color-foreground-secondary — visually the
+     same colour, so the three-tier hierarchy collapses to two. For readable
+     muted text use --color-foreground-secondary (4.95:1). */
+  --color-foreground-tertiary: var(--palette-warm-400);
+
+  /* --- Text on fills ---------------------------------------------------- */
+  /* Each fill is paired with the text colour that passes AA on it. Always use
+     the matching token — `bg-error text-on-error`, never `bg-error
+     text-on-primary` — and the pair is accessible by construction.
+     Every ratio below is measured, not estimated.
+
+     The design specified "Text on primary: #FFFFFF", but white fails on every
+     brand fill: primary 2.9:1, secondary 2.5:1, success 2.2:1. All three sit at
+     roughly the same lightness (oklch L ≈ 0.68–0.73) — they are light colours,
+     so they need dark text. Error is the inverse (L ≈ 0.56, a dark colour) and
+     genuinely does need white. Resolved by flipping the text and leaving every
+     designed hex untouched. */
+  --color-on-primary: var(--palette-warm-900); /* on --color-primary     5.73:1 */
+  --color-on-secondary: var(--palette-warm-900); /* on --color-secondary   6.56:1 */
+  --color-on-success: var(--palette-warm-900); /* on --color-success     7.46:1 */
+  --color-on-rating: var(--palette-warm-900); /* on --color-rating     10.16:1 */
+  --color-on-error: var(--palette-white); /* on --color-error       5.32:1 */
+  --color-on-success-bg: var(--palette-white); /* on --color-success-bg  5.31:1 */
+
+  /* --- Feedback --------------------------------------------------------- */
+  --color-success: var(--palette-green-500);
+  --color-error: var(--palette-red-600);
+
+  /* NEEDS DESIGN SIGN-OFF — the one place a hex was added rather than re-paired.
+     The signup screen puts "Strong Password" in --color-success, which measures
+     2.10:1 on the background: unreadable, and failing even the 3:1 large-text
+     floor. Unlike the button fills, there is no re-pairing available — you
+     cannot flip coloured text on a background; the colour IS the text.
+     --palette-green-500 is untouched and still correct for fills; this is the
+     darkest same-hue green that carries text (4.55:1 on background, 4.82:1 on
+     surface). Use it for green TEXT and nothing else. */
+  --color-success-text: var(--palette-green-700);
+
+  /* Labelled "Success BG" in the design, but the value is brown and reads as a
+     warning, not a success. Likely a mislabel — confirm before building on it. */
+  --color-success-bg: var(--palette-brown-600);
+
+  /* --- Functional ------------------------------------------------------- */
+  /* Rating stars. As a graphical object it needs 3:1 against its background;
+     it clears that on --color-background but not against white — check per
+     placement. Pair with --color-on-rating, never white (1.6:1). */
+  --color-rating: var(--palette-yellow-500);
+}
+
+/* ============================================================================
+   Dark theme — NOT YET DEFINED
+   ============================================================================
+   Every screen in the Figma file is drawn in both light and dark, but the
+   palette above covers light only. Dark values are missing, and inventing them
+   here would silently diverge from the design.
+
+   Because components reference the semantic tier only, adding dark mode means
+   overriding the --color-* roles in one place — no component changes. Both
+   selectors are needed: the media query for system preference, and the
+   attribute for an in-app toggle that must win over it.
+
+     @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+     [data-theme='dark'] {
+       --color-background: var(--palette-...);
+       --color-foreground: var(--palette-...);
+     }
+
+   Do not add these until the dark values are exported from Figma.
+   ========================================================================== */

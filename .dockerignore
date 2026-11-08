@@ -1,0 +1,25 @@
+# General workspace noise
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Local artifacts and caches
+node_modules
+**/node_modules
+.next
+**/.next
+coverage
+**/coverage
+npm-debug.log*
+
+# Source code zips / duplicate archives
+*.zip
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+
+# Keep only the source trees needed to build
+# (the Dockerfiles already point at the repo folders explicitly)
