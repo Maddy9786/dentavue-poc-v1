@@ -3,28 +3,30 @@
 import { useAppSelector } from '@/store/hooks'
 import { selectCurrentUser } from '@/features/auth/authSlice'
 import BellIcon from '@/icons/bell.svg'
+import DentaVueLogo from '@/icons/teeth-ai.svg'
 
 /**
- * "Good morning, {name}" + notification bell.
+ * DentaVue company logo + brand header + "Hi, {name}" subtitle + notification bell.
  *
- * The name is pulled from the signed-in user so the greeting is real rather than
- * hard-coded — falling back to "there" when the profile has no first name yet
- * (onboarding hasn't run) or state was cleared by a refresh. Client component
- * because it reads the auth slice.
- *
- * The greeting is fixed at "Good morning" rather than time-derived: computing it
- * from the clock during render risks a server/client hydration mismatch, and
- * time-of-day greetings belong on the server once one exists.
+ * Uses the official DentaVue tooth-AI mark (`teeth-ai.svg`) in a circular surface
+ * badge alongside the "DentaVue" title and user greeting.
  */
 export function GreetingHeader() {
   const user = useAppSelector(selectCurrentUser)
   const name = user?.firstName?.trim() || 'there'
 
   return (
-    <header className="flex items-start justify-between gap-sm">
-      <div className="flex flex-col gap-2xs">
-        <span className="text-h1-lg text-foreground">Good morning</span>
-        <span className="text-h1 font-medium text-foreground">{name}</span>
+    <header className="flex items-center justify-between gap-sm">
+      <div className="flex items-center gap-sm">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface shadow-drop">
+          <DentaVueLogo aria-hidden="true" focusable="false" className="size-7" />
+        </div>
+        <div className="flex flex-col">
+          <span className="text-h1-lg leading-tight font-semibold tracking-tight text-foreground">
+            DentaVue
+          </span>
+          <span className="text-body font-medium text-foreground-secondary">Hi, {name}</span>
+        </div>
       </div>
 
       <button
