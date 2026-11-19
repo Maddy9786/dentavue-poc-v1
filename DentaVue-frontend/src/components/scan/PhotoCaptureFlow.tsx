@@ -22,103 +22,111 @@ import CameraShutterIcon from '@/icons/camera-mobile.svg'
 import GalleryIcon from '@/icons/image.png'
 
 const MAX_DIMENSION = 1280
-const ZOOM_PRESETS = [1, 1.5, 2, 2.5, 3] as const
+const ZOOM_PRESETS = [1, 1.5, 2] as const
 
 interface StepGuidance {
   icon: string
+  userStepNumber: number
+  userStepTotal: number
   shortPose: string
   headline: string
   subtext: string
   voicePrompt: string
-  distanceTip: string
   recommendedZoom: number
 }
 
 const STEP_GUIDANCE: Record<string, StepGuidance> = {
   'front-teeth': {
     icon: '😁',
+    userStepNumber: 1,
+    userStepTotal: 2,
     shortPose: 'Say "EEEE"',
-    headline: 'Wide smile showing teeth & gums',
-    subtext: 'Show both upper & lower teeth and gums — we can also auto-extract gums from this!',
+    headline: 'Step 1 of 2: Give a wide smile',
+    subtext: 'Upper & lower gums will be auto-extracted in the background!',
     voicePrompt:
-      'Step 1, Front teeth and gums. Give a wide smile showing your top and bottom teeth and gums, then tap the shutter.',
-    distanceTip: '2x Macro Zoom · Hold phone 15–20 cm away',
-    recommendedZoom: 2,
-  },
-  'upper-gums': {
-    icon: '⬆️',
-    shortPose: 'Say "AAAH" or Auto-Use',
-    headline: 'Show upper gums — or tap Auto-Use below!',
-    subtext: 'Open wide and angle phone slightly up, OR tap "✨ Auto-Use from Step 1 Smile"',
-    voicePrompt:
-      'Step 2, Upper gums. Open your mouth wide to show your top gums, or tap the Auto-Use button to extract them from your Step 1 smile.',
-    distanceTip: '1.5x Wide Angle · Easy tilt view',
+      'Step 1 of 2. Look straight at the camera, give a wide smile showing your teeth and gums, and tap the shutter.',
     recommendedZoom: 1.5,
   },
   tongue: {
     icon: '👅',
-    shortPose: 'Stick Tongue Out',
-    headline: 'Open mouth & stick your tongue out comfortably',
-    subtext: 'Place your tongue inside the oval guide, then tap the shutter button',
+    userStepNumber: 2,
+    userStepTotal: 2,
+    shortPose: 'Say "AAAH"',
+    headline: 'Step 2 of 2: Open mouth & stick tongue out',
+    subtext: 'Place your tongue inside the oval frame and tap the shutter',
     voicePrompt:
-      'Step 3, Tongue. Open your mouth and stick your tongue out comfortably inside the oval, then tap the shutter.',
-    distanceTip: '1.5x Wide Angle · Relax tongue forward',
+      'Step 2 of 2. Open your mouth wide, stick your tongue out comfortably, and tap the shutter.',
+    recommendedZoom: 1.5,
+  },
+  'upper-gums': {
+    icon: '⬆️',
+    userStepNumber: 2,
+    userStepTotal: 4,
+    shortPose: 'Upper Gums',
+    headline: 'Retake: Show upper gums & top teeth',
+    subtext: 'Open mouth slightly and tap the shutter',
+    voicePrompt: 'Show your upper gums and top teeth, then tap the shutter.',
     recommendedZoom: 1.5,
   },
   'lower-gums': {
     icon: '⬇️',
-    shortPose: 'Lower Lip or Auto-Use',
-    headline: 'Show lower gums — or tap Auto-Use below!',
-    subtext: 'Pull bottom lip down gently, OR tap "✨ Auto-Use from Step 1 Smile"',
-    voicePrompt:
-      'Step 4, Lower gums. Pull your lower lip down to show your bottom gums, or tap the Auto-Use button to extract them from your Step 1 smile.',
-    distanceTip: '1.5x Wide Angle · Easy tilt view',
+    userStepNumber: 4,
+    userStepTotal: 4,
+    shortPose: 'Lower Gums',
+    headline: 'Retake: Show lower gums & bottom teeth',
+    subtext: 'Lower your bottom lip slightly and tap the shutter',
+    voicePrompt: 'Show your lower gums and bottom teeth, then tap the shutter.',
     recommendedZoom: 1.5,
   },
 }
 
 /**
- * Automatically extracts a high-resolution Upper Gums or Lower Gums macro crop
- * from the Step 1 Wide Smile photo (`front-teeth`), saving the user from awkward
- * lip-pulling or head-tilting on a mobile phone.
+ * Automatically slices a high-resolution Upper Gums (`position 1`) and Lower Gums
+ * (`position 3`) macro view from the user's Step 1 Wide Smile photo (`position 0`).
+ *
+ * This turns a single effortless "Wide Smile" shot into 3 clinical views:
+ *   - Slot 0 (`front-teeth`): Full smile arch
+ *   - Slot 1 (`upper-gums`):  Top 58% macro crop focusing on maxillary gingiva & upper teeth
+ *   - Slot 3 (`lower-gums`):  Bottom 58% macro crop focusing on mandibular gingiva & lower teeth
  */
-function cropGumRegionFromSmile(
+function autoSliceUpperAndLowerGums(
   smileDataUrl: string,
-  targetStepId: 'upper-gums' | 'lower-gums',
-): Promise<string | null> {
+): Promise<{ upperGumsUrl: string; lowerGumsUrl: string } | null> {
   return new Promise((resolve) => {
     const img = new window.Image()
     img.onload = () => {
-      const srcX = Math.round(img.width * 0.06)
-      const srcW = Math.round(img.width * 0.88)
-      // Upper gums sit in the upper-middle arch (6%..60% Y); Lower gums sit in the lower-middle arch (40%..94% Y)
-      const srcY =
-        targetStepId === 'upper-gums'
-          ? Math.round(img.height * 0.06)
-          : Math.round(img.height * 0.4)
-      const srcH = Math.round(img.height * 0.54)
+      const cropRegion = (yStartFraction: number, yHeightFraction: number): string | null => {
+        const srcX = Math.round(img.width * 0.08)
+        const srcW = Math.round(img.width * 0.84)
+        const srcY = Math.round(img.height * yStartFraction)
+        const srcH = Math.round(img.height * yHeightFraction)
 
-      const scale = Math.min(1, MAX_DIMENSION / Math.max(srcW, srcH))
-      const outW = Math.max(1, Math.round(srcW * scale))
-      const outH = Math.max(1, Math.round(srcH * scale))
+        const scale = Math.min(1, MAX_DIMENSION / Math.max(srcW, srcH))
+        const outW = Math.max(1, Math.round(srcW * scale))
+        const outH = Math.max(1, Math.round(srcH * scale))
 
-      const canvas = document.createElement('canvas')
-      canvas.width = outW
-      canvas.height = outH
-      const ctx = canvas.getContext('2d')
-      if (!ctx) {
+        const canvas = document.createElement('canvas')
+        canvas.width = outW
+        canvas.height = outH
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return null
+        ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
+        return canvas.toDataURL('image/jpeg', 0.92)
+      }
+
+      const upperGumsUrl = cropRegion(0.05, 0.55)
+      const lowerGumsUrl = cropRegion(0.4, 0.55)
+      if (!upperGumsUrl || !lowerGumsUrl) {
         resolve(null)
         return
       }
-      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
-      resolve(canvas.toDataURL('image/jpeg', 0.92))
+      resolve({ upperGumsUrl, lowerGumsUrl })
     }
     img.onerror = () => resolve(null)
     img.src = smileDataUrl
   })
 }
 
-/** Plays an audio cue (soft tick during 3s countdown, chime on capture, or low buzz on wrong photo). */
 function playAudioCue(type: 'tick' | 'snap' | 'reject') {
   try {
     const AudioCtx =
@@ -130,158 +138,80 @@ function playAudioCue(type: 'tick' | 'snap' | 'reject') {
     const gain = ctx.createGain()
     osc.type = type === 'reject' ? 'sawtooth' : 'sine'
     osc.frequency.value = type === 'snap' ? 920 : type === 'reject' ? 240 : 540
-    gain.gain.value = type === 'snap' ? 0.12 : type === 'reject' ? 0.09 : 0.07
+    gain.gain.value = type === 'snap' ? 0.12 : type === 'reject' ? 0.08 : 0.07
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
-    osc.stop(ctx.currentTime + (type === 'snap' ? 0.18 : type === 'reject' ? 0.25 : 0.08))
+    osc.stop(ctx.currentTime + (type === 'snap' ? 0.16 : type === 'reject' ? 0.22 : 0.08))
   } catch {
-    // Ignore audio context restrictions if not permitted
+    // Ignore audio context restrictions
   }
 }
 
-/** Speaks a short English instruction using the browser's Web Speech API. */
 function speakEnglish(text: string) {
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
   try {
     window.speechSynthesis.cancel()
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = 'en-GB'
-    utterance.rate = 0.98
+    utterance.rate = 1.0
     window.speechSynthesis.speak(utterance)
   } catch {
     // Ignore if speech synthesis is blocked
   }
 }
 
-/** Renders the angle-specific SVG dental alignment overlay inside the live camera viewfinder. */
-function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string }) {
+/** Clean, minimal mouth/tongue guide frame that never clutters the user's face. */
+function CleanGuideOverlay({ stepId, color }: { stepId: string; color: string }) {
+  const isTongue = stepId === 'tongue'
   return (
     <svg
       viewBox="0 0 320 180"
       aria-hidden="true"
-      className="pointer-events-none h-48 w-80 max-w-[92%] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] transition-colors duration-300"
+      className="pointer-events-none h-44 w-72 max-w-[88%] drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)] transition-colors duration-300"
     >
-      {/* Corner alignment brackets */}
+      {/* Clean corner brackets */}
       <path
-        d="M14,44 L14,14 L46,14 M274,14 L306,14 L306,44 M14,136 L14,166 L46,166 M274,166 L306,166 L306,136"
+        d="M20,44 L20,18 L48,18 M272,18 L300,18 L300,44 M20,136 L20,162 L48,162 M272,162 L300,162 L300,136"
         fill="none"
         stroke={color}
         strokeWidth="3"
         strokeLinecap="round"
       />
-
-      {stepId === 'front-teeth' && (
+      {isTongue ? (
         <>
           <path
-            d="M32,92 Q160,18 288,92 Q160,164 32,92 Z"
-            fill={`${color}18`}
+            d="M104,48 Q160,36 216,48 L216,112 Q216,154 160,154 Q104,154 104,112 Z"
+            fill="none"
             stroke={color}
             strokeWidth="2.5"
-            strokeDasharray="7 4"
+            strokeDasharray="8 5"
           />
-          <line x1="50" y1="92" x2="270" y2="92" stroke={color} strokeWidth="1.8" strokeDasharray="4 4" />
-          <line x1="160" y1="48" x2="160" y2="136" stroke={color} strokeWidth="1.8" strokeDasharray="4 4" />
-          <rect x="130" y="61" width="28" height="29" rx="5" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" />
-          <rect x="162" y="61" width="28" height="29" rx="5" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" />
-          <rect x="102" y="65" width="25" height="25" rx="4" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
-          <rect x="193" y="65" width="25" height="25" rx="4" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
-          <rect x="133" y="94" width="25" height="24" rx="4" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.6" />
-          <rect x="162" y="94" width="25" height="24" rx="4" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.6" />
-          <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
-            WIDE SMILE: SHOW TEETH &amp; GUMS
+          <text x="160" y="13" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
+            CENTER TONGUE HERE
           </text>
         </>
-      )}
-
-      {stepId === 'upper-gums' && (
+      ) : (
         <>
           <path
-            d="M44,86 Q160,20 276,86 Q160,54 44,86 Z"
-            fill="rgba(244,114,182,0.25)"
-            stroke="#f472b6"
-            strokeWidth="2.4"
-            strokeDasharray="5 3"
-          />
-          <path
-            d="M40,122 Q160,30 280,122"
+            d="M36,92 Q160,24 284,92 Q160,160 36,92 Z"
             fill="none"
             stroke={color}
-            strokeWidth="2.6"
-            strokeDasharray="7 4"
+            strokeWidth="2.5"
+            strokeDasharray="8 5"
           />
-          <path
-            d="M160,150 L160,106 M146,118 L160,103 L174,118"
-            fill="none"
+          <line
+            x1="56"
+            y1="92"
+            x2="264"
+            y2="92"
             stroke={color}
-            strokeWidth="2.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+            strokeWidth="1.5"
+            strokeDasharray="5 5"
+            opacity="0.75"
           />
-          <text x="160" y="12" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
-            UPPER GUMS &amp; TOP TEETH
-          </text>
-          <text x="160" y="172" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
-            OPEN WIDE OR TAP &quot;AUTO-USE&quot; BELOW
-          </text>
-        </>
-      )}
-
-      {stepId === 'tongue' && (
-        <>
-          <ellipse
-            cx="160"
-            cy="88"
-            rx="98"
-            ry="60"
-            fill="none"
-            stroke="rgba(255,255,255,0.45)"
-            strokeWidth="1.6"
-            strokeDasharray="4 4"
-          />
-          <path
-            d="M104,52 Q160,40 216,52 L216,114 Q216,158 160,158 Q104,158 104,114 Z"
-            fill={`${color}18`}
-            stroke={color}
-            strokeWidth="2.6"
-            strokeDasharray="7 4"
-          />
-          <line x1="160" y1="58" x2="160" y2="140" stroke={color} strokeWidth="1.8" strokeDasharray="4 4" />
-          <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
-            STICK TONGUE OUT INSIDE OVAL
-          </text>
-        </>
-      )}
-
-      {stepId === 'lower-gums' && (
-        <>
-          <path
-            d="M40,60 Q160,152 280,60"
-            fill="none"
-            stroke={color}
-            strokeWidth="2.6"
-            strokeDasharray="7 4"
-          />
-          <path
-            d="M44,96 Q160,158 276,96 Q160,126 44,96 Z"
-            fill="rgba(244,114,182,0.25)"
-            stroke="#f472b6"
-            strokeWidth="2.4"
-            strokeDasharray="5 3"
-          />
-          <path
-            d="M160,30 L160,74 M146,62 L160,77 L174,62"
-            fill="none"
-            stroke={color}
-            strokeWidth="2.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
-            SHOW LOWER GUMS OR TAP &quot;AUTO-USE&quot;
-          </text>
-          <text x="160" y="172" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
-            LOWER GUMS &amp; BOTTOM TEETH
+          <text x="160" y="13" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
+            CENTER SMILE HERE
           </text>
         </>
       )}
@@ -297,6 +227,8 @@ export function PhotoCaptureFlow() {
 
   const steps = photoCaptureSteps
   const total = steps.length
+  // Index into `photoCaptureSteps` (0: front-teeth, 1: upper-gums, 2: tongue, 3: lower-gums)
+  // In v2 2-Step Easy Mode, normal capture jumps 0 (Wide Smile) -> 2 (Tongue) -> Review!
   const [step, setStep] = useState(0)
   const current = steps[step]!
   const guidance = STEP_GUIDANCE[current.id] ?? STEP_GUIDANCE['front-teeth']!
@@ -310,12 +242,10 @@ export function PhotoCaptureFlow() {
   const [guidedMode, setGuidedMode] = useState<'v2' | 'v1'>('v2')
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [isMirrored, setIsMirrored] = useState(true)
-  const [zoomLevel, setZoomLevel] = useState<number>(2)
+  const [zoomLevel, setZoomLevel] = useState<number>(1.5)
   const [hwZoomApplied, setHwZoomApplied] = useState<number>(1)
   const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [screenLightOn, setScreenLightOn] = useState(false)
-  const [timerEnabled, setTimerEnabled] = useState(false)
-  const [countdown, setCountdown] = useState<number | null>(null)
   const [shutterFlash, setShutterFlash] = useState(false)
   const [liveFeedback, setLiveFeedback] = useState<LiveFrameFeedback | null>(null)
   const [rejectedAttempt, setRejectedAttempt] = useState<{
@@ -328,9 +258,8 @@ export function PhotoCaptureFlow() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pinchStartDistRef = useRef<number | null>(null)
-  const pinchStartZoomRef = useRef<number>(2)
+  const pinchStartZoomRef = useRef<number>(1.5)
 
   const [captures, setCaptures] = useState<string[]>([])
   const [streamReady, setStreamReady] = useState(false)
@@ -338,21 +267,11 @@ export function PhotoCaptureFlow() {
 
   const effectiveCropZoom = guidedMode === 'v1' ? 1 : Math.max(1, zoomLevel / hwZoomApplied)
 
-  // Can we auto-extract Upper Gums or Lower Gums from the Step 1 Smile photo?
-  const canAutoExtractGum =
-    (current.id === 'upper-gums' || current.id === 'lower-gums') && Boolean(captures[0])
-
-  // Auto-adjust zoom when step changes: 2.0x for Step 1 (Front Teeth), 1.5x for Steps 2, 3, 4 (wider view when tilting!)
-  // Also auto-enable Screen Light Ring on inner-mouth steps (Upper Gums, Tongue, Lower Gums) for better indoor visibility
   useEffect(() => {
-    setZoomLevel(guidance.recommendedZoom)
     setRejectedAttempt(null)
-    if (step > 0 && guidedMode === 'v2') {
-      setScreenLightOn(true)
-    }
-  }, [step, guidance.recommendedZoom, guidedMode])
+  }, [step])
 
-  // Request high-resolution 1920x1440 stream
+  // Start camera stream at high resolution (1920x1440 ideal)
   useEffect(() => {
     let cancelled = false
     setStreamReady(false)
@@ -399,7 +318,7 @@ export function PhotoCaptureFlow() {
     }
   }, [facingMode])
 
-  // Apply hardware camera zoom when supported
+  // Hardware zoom when supported
   useEffect(() => {
     const track = streamRef.current?.getVideoTracks()?.[0]
     if (!track || !streamReady) {
@@ -441,7 +360,7 @@ export function PhotoCaptureFlow() {
         })
       }
     } catch {
-      // Screen ring light handles illumination when hardware torch is absent
+      // Screen ring light fallback
     }
   }, [screenLightOn, streamReady])
 
@@ -457,50 +376,116 @@ export function PhotoCaptureFlow() {
     }
   }, [step, voiceEnabled, phase, guidedMode, guidance.voicePrompt])
 
-  // Real-time 350ms live frame analyzer
+  // Real-time 400ms live frame analyzer
   useEffect(() => {
     if (!streamReady || phase !== 'capture' || guidedMode !== 'v2') return
     const id = setInterval(() => {
       if (!videoRef.current) return
       const result = assessLiveVideoFrame(videoRef.current, effectiveCropZoom, current.id)
       if (result) setLiveFeedback(result)
-    }, 350)
+    }, 400)
     return () => clearInterval(id)
   }, [streamReady, phase, guidedMode, effectiveCropZoom, current.id])
 
-  /** Saves a confirmed photo for the current step and moves to the next step (or review). */
+  /**
+   * Commits a captured photo:
+   * - In v2 Smart 2-Step Mode:
+   *   * Step 0 (`front-teeth` Wide Smile) ALSO auto-slices `upper-gums` (slot 1)
+   *     and `lower-gums` (slot 3) in the background, then jumps straight to
+   *     Step 2 (`tongue`)!
+   *   * Step 2 (`tongue` Open Mouth) saves slot 2 and opens the Quality Check Review!
+   */
   const commitStepCapture = useCallback(
-    (dataUrl: string, quality: ImageQuality) => {
+    async (dataUrl: string, quality: ImageQuality) => {
       const capturedStep = step
       setRejectedAttempt(null)
 
+      // Single-slot retake from the Quality Check screen
+      if (retakeIndexRef.current !== null) {
+        const idx = retakeIndexRef.current
+        retakeIndexRef.current = null
+        setCaptures((prev) => {
+          const next = [...prev]
+          next[idx] = dataUrl
+          return next
+        })
+        setQualities((prev) => {
+          const next = [...prev]
+          next[idx] = quality
+          return next
+        })
+        setPhase('review')
+        return
+      }
+
+      // v2 Smart 2-Step Auto-Slicer: Photo 1 (Wide Smile) generates Slots 0, 1, and 3 automatically!
+      if (guidedMode === 'v2' && capturedStep === 0) {
+        const sliced = await autoSliceUpperAndLowerGums(dataUrl)
+        const sharpAutoQuality: ImageQuality = {
+          status: 'sharp',
+          isNonOral: false,
+          luminance: quality.luminance,
+          sharpness: Math.max(150, quality.sharpness),
+          oralRatio: quality.oralRatio,
+        }
+
+        setCaptures((prev) => {
+          const next = [...prev]
+          next[0] = dataUrl
+          next[1] = sliced?.upperGumsUrl ?? dataUrl
+          next[3] = sliced?.lowerGumsUrl ?? dataUrl
+          return next
+        })
+        setQualities((prev) => {
+          const next = [...prev]
+          next[0] = quality
+          next[1] = sharpAutoQuality
+          next[3] = sharpAutoQuality
+          return next
+        })
+
+        // Jump straight from Step 0 (Wide Smile) to Step 2 (Tongue)!
+        setStep(2)
+        return
+      }
+
+      // v2 Smart 2-Step Mode: Photo 2 (Tongue, index 2) completes all 4 slots!
+      if (guidedMode === 'v2' && capturedStep === 2) {
+        setCaptures((prev) => {
+          const next = [...prev]
+          next[2] = dataUrl
+          return next
+        })
+        setQualities((prev) => {
+          const next = [...prev]
+          next[2] = quality
+          return next
+        })
+        if (voiceEnabled) {
+          speakEnglish('Scan complete! Review your 4 dental views below.')
+        }
+        setPhase('review')
+        return
+      }
+
+      // v1 Classic 4-step fallback
       setCaptures((prev) => {
         const next = [...prev]
         next[capturedStep] = dataUrl
         return next
       })
-
       setQualities((prev) => {
         const next = [...prev]
         next[capturedStep] = quality
         return next
       })
-
-      if (retakeIndexRef.current !== null) {
-        retakeIndexRef.current = null
-        setPhase('review')
-        return
-      }
       if (capturedStep < total - 1) {
         setStep((s) => s + 1)
         return
       }
-      if (voiceEnabled && guidedMode === 'v2') {
-        speakEnglish('All 4 photos captured! Review your quality check below.')
-      }
       setPhase('review')
     },
-    [step, total, voiceEnabled, guidedMode],
+    [step, total, guidedMode, voiceEnabled],
   )
 
   const handleCaptured = useCallback(
@@ -509,12 +494,10 @@ export function PhotoCaptureFlow() {
       const stepObj = steps[capturedStep]!
       const quality = await assessImageQuality(dataUrl, stepObj.id)
 
-      // If non-oral or too dark, pause on this step and show the warning modal
-      // (which lets the user either Retake, Use Photo Anyway, or Auto-Extract from Step 1 Smile)
       if (quality.isNonOral) {
         const reason =
           quality.rejectionDetail ??
-          `We couldn't clearly see your ${stepObj.label.toLowerCase()}. Please align inside the guide and retake, or tap "Use Photo Anyway".`
+          `We couldn't clearly see your ${stepObj.label.toLowerCase()}. Retake pointing at your mouth, or tap "Use Photo Anyway".`
         setRejectedAttempt({
           stepLabel: stepObj.label,
           reason,
@@ -522,54 +505,21 @@ export function PhotoCaptureFlow() {
           quality,
         })
         playAudioCue('reject')
-        if (voiceEnabled && guidedMode === 'v2') {
-          speakEnglish(
-            `We could not clearly see your ${stepObj.label.toLowerCase()}. Tap Retake to try again, or tap Use Photo Anyway to continue.`,
-          )
-        }
         return
       }
 
-      commitStepCapture(dataUrl, quality)
+      await commitStepCapture(dataUrl, quality)
     },
-    [step, steps, voiceEnabled, guidedMode, commitStepCapture],
+    [step, steps, commitStepCapture],
   )
 
-  /**
-   * 1-Tap Smart Helper for Steps 2 (Upper Gums) & 4 (Lower Gums):
-   * Crops the upper or lower gumline arch directly from the Step 1 Smile photo!
-   */
-  const handleAutoExtractFromSmile = async () => {
-    const smilePhoto = captures[0]
-    if (!smilePhoto) return
-    if (current.id !== 'upper-gums' && current.id !== 'lower-gums') return
-
-    setShutterFlash(true)
-    playAudioCue('snap')
-    setTimeout(() => setShutterFlash(false), 180)
-
-    const cropped = await cropGumRegionFromSmile(smilePhoto, current.id)
-    if (!cropped) return
-    commitStepCapture(cropped, {
-      status: 'sharp',
-      isNonOral: false,
-      luminance: 120,
-      sharpness: 250,
-      oralRatio: 0.35,
-    })
-  }
-
-  /**
-   * Captures the exact zoomed-in Macro ROI from the raw camera sensor stream
-   * when the user taps the Shutter button.
-   */
   const captureImmediate = useCallback(() => {
     const video = videoRef.current
     if (!video || !video.videoWidth) return
 
     setShutterFlash(true)
     playAudioCue('snap')
-    setTimeout(() => setShutterFlash(false), 180)
+    setTimeout(() => setShutterFlash(false), 160)
 
     const z = Math.max(1, Math.min(3.5, effectiveCropZoom))
     const srcW = video.videoWidth / z
@@ -590,40 +540,7 @@ export function PhotoCaptureFlow() {
     void handleCaptured(canvas.toDataURL('image/jpeg', 0.92))
   }, [handleCaptured, effectiveCropZoom])
 
-  /** Triggered ONLY when the user explicitly taps the Shutter button. */
-  const triggerShutter = () => {
-    if (!streamReady) return
-    if (!timerEnabled || guidedMode === 'v1') {
-      captureImmediate()
-      return
-    }
-    if (countdown !== null) return
-
-    let remaining = 3
-    setCountdown(remaining)
-    playAudioCue('tick')
-
-    countdownTimerRef.current = setInterval(() => {
-      remaining -= 1
-      if (remaining > 0) {
-        setCountdown(remaining)
-        playAudioCue('tick')
-      } else {
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-        countdownTimerRef.current = null
-        setCountdown(null)
-        captureImmediate()
-      }
-    }, 850)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-    }
-  }, [])
-
-  // Two-finger pinch-to-zoom handlers
+  // Pinch-to-zoom on mobile
   const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
     if (e.touches.length === 2) {
       const dx = e.touches[0]!.clientX - e.touches[1]!.clientX
@@ -640,7 +557,7 @@ export function PhotoCaptureFlow() {
       const dist = Math.hypot(dx, dy)
       const ratio = dist / Math.max(1, pinchStartDistRef.current)
       const nextZoom =
-        Math.round(Math.min(3.5, Math.max(1, pinchStartZoomRef.current * ratio)) * 10) / 10
+        Math.round(Math.min(3, Math.max(1, pinchStartZoomRef.current * ratio)) * 10) / 10
       setZoomLevel(nextZoom)
     }
   }
@@ -706,6 +623,15 @@ export function PhotoCaptureFlow() {
           ? '#fbbf24'
           : '#f87171'
 
+  const isTwoStepFlow = guidedMode === 'v2' && retakeIndexRef.current === null
+  const displayStepNum = isTwoStepFlow ? (step === 0 ? 1 : 2) : step + 1
+  const displayStepTotal = isTwoStepFlow ? 2 : total
+  const displayStepTitle = isTwoStepFlow
+    ? step === 0
+      ? 'Wide Smile (Teeth & Gums)'
+      : 'Open Mouth (Tongue)'
+    : current.label
+
   return (
     <>
       <main className={cn('flex min-h-dvh flex-col bg-background', phase === 'review' && 'hidden')}>
@@ -724,44 +650,58 @@ export function PhotoCaptureFlow() {
                   ? 'bg-primary text-surface'
                   : 'border border-border bg-surface text-foreground-secondary',
               )}
-              title="Switch between v2 Smart Guided Overlay and v1 Classic Camera"
             >
-              {guidedMode === 'v2' ? '✨ v2 Guide' : 'v1 Classic'}
+              {guidedMode === 'v2' ? '✨ 2-Step Easy' : '4-Step Classic'}
             </button>
           </header>
 
-          {/* Progress bar */}
+          {/* Clean 2-Step Progress Bar in v2 Mode */}
           <div
             role="progressbar"
             aria-valuemin={1}
-            aria-valuemax={total}
-            aria-valuenow={step + 1}
-            aria-valuetext={`Step ${step + 1} of ${total}: ${current.label}`}
+            aria-valuemax={displayStepTotal}
+            aria-valuenow={displayStepNum}
             aria-label="Scan progress"
             className="flex gap-xs"
           >
-            {steps.map((s, i) => (
+            {Array.from({ length: displayStepTotal }).map((_, i) => (
               <span
-                key={s.id}
+                key={i}
                 className={cn(
                   'h-2 flex-1 rounded-full',
-                  i === step ? 'bg-primary' : i < step ? 'bg-secondary' : 'bg-border',
+                  i + 1 === displayStepNum
+                    ? 'bg-primary'
+                    : i + 1 < displayStepNum
+                      ? 'bg-secondary'
+                      : 'bg-border',
                 )}
               />
             ))}
           </div>
 
-          {/* Step chip + helper bar */}
-          <div aria-live="polite" className="flex flex-wrap items-center justify-between gap-xs">
+          {/* Step chip + simple Light & Voice toggles */}
+          <div aria-live="polite" className="flex items-center justify-between gap-xs">
             <span className="inline-flex items-center gap-xs rounded-full bg-surface px-md py-xs text-h2 font-medium shadow-drop">
               <span className="text-primary">
-                Step {step + 1}/{total}
+                Photo {displayStepNum}/{displayStepTotal}
               </span>
-              <span className="text-foreground">· {current.label}</span>
+              <span className="text-foreground">· {displayStepTitle}</span>
             </span>
 
             {guidedMode === 'v2' && (
               <div className="flex items-center gap-2xs">
+                <button
+                  type="button"
+                  onClick={() => setScreenLightOn((l) => !l)}
+                  className={cn(
+                    'rounded-full px-sm py-2xs text-nav font-medium transition-colors',
+                    screenLightOn
+                      ? 'bg-success-bg text-surface'
+                      : 'border border-border bg-surface text-foreground-secondary',
+                  )}
+                >
+                  💡 Light
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -775,49 +715,14 @@ export function PhotoCaptureFlow() {
                       ? 'bg-primary text-surface'
                       : 'border border-border bg-surface text-foreground-secondary',
                   )}
-                  title="Read instructions out loud in English"
                 >
-                  {voiceEnabled ? '🔊 Voice' : '🔇 Mute'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setScreenLightOn((l) => !l)}
-                  className={cn(
-                    'rounded-full px-sm py-2xs text-nav font-medium transition-colors',
-                    screenLightOn
-                      ? 'bg-success-bg text-surface'
-                      : 'border border-border bg-surface text-foreground-secondary',
-                  )}
-                  title="Illuminate mouth with screen flash / torch"
-                >
-                  💡 Light
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimerEnabled((t) => !t)}
-                  className={cn(
-                    'rounded-full px-sm py-2xs text-nav font-medium transition-colors',
-                    timerEnabled
-                      ? 'bg-primary text-surface'
-                      : 'border border-border bg-surface text-foreground-secondary',
-                  )}
-                  title="3-second countdown when you tap the shutter button"
-                >
-                  {timerEnabled ? '⏱️ 3s On' : '⏱️ 3s'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsMirrored((m) => !m)}
-                  className="rounded-full border border-border bg-surface px-sm py-2xs text-nav font-medium text-foreground-secondary"
-                  title="Toggle horizontal mirror"
-                >
-                  🪞
+                  {voiceEnabled ? '🔊' : '🔇'}
                 </button>
               </div>
             )}
           </div>
 
-          {/* Live Camera Viewfinder with Macro Zoom + SVG Dental Alignment Guide */}
+          {/* Clean, Uncluttered Live Camera Viewfinder */}
           <div
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -825,14 +730,13 @@ export function PhotoCaptureFlow() {
             className={cn(
               'relative aspect-[3/4] w-full overflow-hidden rounded-4 bg-foreground transition-all duration-300 md:aspect-[4/3]',
               guidedMode === 'v2' && liveFeedback?.state === 'ready' && 'ring-4 ring-[#34d399]',
-              guidedMode === 'v2' && liveFeedback?.state === 'adjust' && 'ring-3 ring-[#fbbf24]',
-              guidedMode === 'v2' && liveFeedback?.state === 'invalid' && 'ring-3 ring-[#f87171]',
+              guidedMode === 'v2' && liveFeedback?.state === 'adjust' && 'ring-2 ring-[#fbbf24]',
             )}
             style={
               screenLightOn
                 ? {
                     boxShadow:
-                      'inset 0 0 0 14px rgba(255, 255, 255, 0.96), 0 0 32px rgba(255, 255, 255, 0.8)',
+                      'inset 0 0 0 10px rgba(255, 255, 255, 0.95), 0 0 24px rgba(255, 255, 255, 0.75)',
                   }
                 : undefined
             }
@@ -841,7 +745,7 @@ export function PhotoCaptureFlow() {
               ref={videoRef}
               playsInline
               muted
-              aria-label={`Camera preview — ${current.label}`}
+              aria-label={`Camera preview — ${displayStepTitle}`}
               className="h-full w-full object-cover transition-transform duration-200 ease-out"
               style={{
                 transform: `${isMirrored ? 'scaleX(-1) ' : ''}scale(${effectiveCropZoom})`,
@@ -849,12 +753,11 @@ export function PhotoCaptureFlow() {
               }}
             />
 
-            {/* White camera shutter flash effect on capture */}
             {shutterFlash && (
               <div className="pointer-events-none absolute inset-0 z-30 bg-surface opacity-90 transition-opacity" />
             )}
 
-            {/* Warning Modal Overlay (with Retake, Auto-Extract from Smile, AND Use Photo Anyway options!) */}
+            {/* Warning Modal Overlay (with Retake AND Use Photo Anyway) */}
             {rejectedAttempt && (
               <div
                 role="alertdialog"
@@ -884,32 +787,21 @@ export function PhotoCaptureFlow() {
                     <button
                       type="button"
                       onClick={() => setRejectedAttempt(null)}
-                      className="w-full rounded-3 bg-[#fbbf24] py-xs text-body font-bold text-[#1c1917] transition-transform active:scale-95"
+                      className="w-full rounded-3 bg-[#fbbf24] py-xs text-body font-bold text-[#1c1917]"
                     >
-                      🔄 Retake {rejectedAttempt.stepLabel}
+                      🔄 Retake Photo
                     </button>
-
-                    {canAutoExtractGum && (
-                      <button
-                        type="button"
-                        onClick={() => void handleAutoExtractFromSmile()}
-                        className="w-full rounded-3 bg-[#2dd4bf] py-xs text-body font-bold text-[#042f2e] transition-transform active:scale-95"
-                      >
-                        ✨ Auto-Use from Step 1 Smile →
-                      </button>
-                    )}
-
                     <button
                       type="button"
                       onClick={() =>
-                        commitStepCapture(rejectedAttempt.image, {
+                        void commitStepCapture(rejectedAttempt.image, {
                           ...rejectedAttempt.quality,
                           isNonOral: false,
                         })
                       }
-                      className="w-full rounded-3 border border-surface/30 bg-surface/10 py-xs text-nav font-semibold text-surface transition-transform active:scale-95"
+                      className="w-full rounded-3 border border-surface/30 bg-surface/15 py-xs text-body font-semibold text-surface"
                     >
-                      ✓ Use This Photo Anyway &amp; Continue →
+                      ✓ Use This Photo &amp; Continue →
                     </button>
                   </div>
                 </div>
@@ -927,53 +819,25 @@ export function PhotoCaptureFlow() {
               />
             )}
 
-            {/* v2 Visual Overlay Layer */}
+            {/* Clean, Minimal Overlay Layer */}
             {guidedMode === 'v2' && streamReady && !error && (
               <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-sm">
-                {/* Top live alignment traffic-light status pill */}
-                <div className="flex justify-center pt-xs">
+                {/* Top compact status pill + zoom selector */}
+                <div className="flex items-center justify-between gap-xs">
                   <span
                     className={cn(
-                      'rounded-full px-md py-2xs text-nav font-semibold shadow-md backdrop-blur-md transition-colors',
+                      'rounded-full px-sm py-2xs text-nav font-semibold shadow-sm backdrop-blur-md',
                       liveFeedback?.state === 'ready'
-                        ? 'border border-[#34d399] bg-[#065f46]/90 text-[#a7f3d0]'
-                        : liveFeedback?.state === 'adjust'
-                          ? 'border border-[#fbbf24] bg-[#78350f]/90 text-[#fde68a]'
-                          : 'border border-[#f87171] bg-[#7f1d1d]/90 text-[#fecaca]',
+                        ? 'bg-[#065f46]/85 text-[#a7f3d0]'
+                        : 'bg-foreground/70 text-surface',
                     )}
                   >
-                    {liveFeedback?.message ?? guidance.distanceTip}
+                    {liveFeedback?.state === 'ready'
+                      ? '✓ Aligned — Tap Shutter!'
+                      : `${guidance.icon} ${guidance.shortPose}`}
                   </span>
-                </div>
 
-                {/* Center angle-specific SVG mouth & teeth framing guide */}
-                <div className="relative flex flex-1 items-center justify-center">
-                  <AngleGuideOverlay stepId={current.id} color={guideColor} />
-                  {countdown !== null && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-foreground/40 backdrop-blur-[2px]">
-                      <span className="text-[64px] font-bold text-surface drop-shadow-lg">
-                        {countdown}
-                      </span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Interactive Macro Zoom Selector + 1-Tap Auto-Extract Gum Helper + Instruction Card */}
-                <div className="flex flex-col gap-xs">
-                  {/* 1-Tap Smart Auto-Extract Button on Upper Gums (Step 2) & Lower Gums (Step 4) */}
-                  {canAutoExtractGum && (
-                    <button
-                      type="button"
-                      onClick={() => void handleAutoExtractFromSmile()}
-                      className="pointer-events-auto mx-auto flex items-center gap-xs rounded-full border border-[#5eead4] bg-[#0f766e]/95 px-md py-xs text-nav font-bold text-surface shadow-lg backdrop-blur-md transition-transform active:scale-95"
-                    >
-                      <span>✨ Hard to tilt? Auto-Use {current.label} from Step 1 Smile →</span>
-                    </button>
-                  )}
-
-                  {/* Macro Zoom Pill Selector */}
-                  <div className="pointer-events-auto mx-auto flex items-center gap-2xs rounded-full border border-surface/20 bg-foreground/75 px-xs py-2xs backdrop-blur-md">
-                    <span className="px-xs text-nav font-medium text-surface/80">🔍 Zoom:</span>
+                  <div className="pointer-events-auto flex items-center gap-2xs rounded-full bg-foreground/70 px-xs py-2xs backdrop-blur-md">
                     {ZOOM_PRESETS.map((preset) => {
                       const active = Math.abs(zoomLevel - preset) < 0.2
                       return (
@@ -982,37 +846,26 @@ export function PhotoCaptureFlow() {
                           type="button"
                           onClick={() => setZoomLevel(preset)}
                           className={cn(
-                            'rounded-full px-sm py-2xs text-nav font-semibold transition-all',
-                            active
-                              ? 'bg-[#2dd4bf] text-[#042f2e] shadow-sm'
-                              : 'text-surface hover:bg-surface/15',
+                            'rounded-full px-xs py-2xs text-nav font-semibold',
+                            active ? 'bg-[#2dd4bf] text-[#042f2e]' : 'text-surface',
                           )}
                         >
-                          {preset}x{preset === guidance.recommendedZoom ? ' ★' : ''}
+                          {preset}x
                         </button>
                       )
                     })}
                   </div>
+                </div>
 
-                  {/* Plain-English positioning card */}
-                  <div className="pointer-events-auto rounded-3 border border-surface/15 bg-foreground/80 px-md py-sm text-surface backdrop-blur-md">
-                    <div className="flex items-center gap-sm">
-                      <span className="text-h1" aria-hidden="true">
-                        {guidance.icon}
-                      </span>
-                      <div className="flex flex-1 flex-col">
-                        <div className="flex items-center justify-between gap-xs">
-                          <span className="text-body font-semibold text-surface">
-                            {guidance.headline}
-                          </span>
-                          <span className="shrink-0 rounded bg-[#2dd4bf]/20 px-xs py-2xs text-nav font-semibold text-[#5eead4]">
-                            {guidance.shortPose}
-                          </span>
-                        </div>
-                        <span className="text-nav text-surface/80">{guidance.subtext}</span>
-                      </div>
-                    </div>
-                  </div>
+                {/* Center minimal mouth/tongue guide */}
+                <div className="flex flex-1 items-center justify-center">
+                  <CleanGuideOverlay stepId={current.id} color={guideColor} />
+                </div>
+
+                {/* Single compact instruction bar at bottom */}
+                <div className="rounded-3 bg-foreground/75 px-md py-xs text-center text-surface backdrop-blur-md">
+                  <p className="text-body font-semibold text-surface">{guidance.headline}</p>
+                  <p className="text-nav text-surface/80">{guidance.subtext}</p>
                 </div>
               </div>
             )}
@@ -1024,24 +877,13 @@ export function PhotoCaptureFlow() {
             </p>
           )}
 
-          {/* Prominent Mobile Action Bar for Steps 2 (Upper Gums) & 4 (Lower Gums) */}
-          {guidedMode === 'v2' && canAutoExtractGum && (
-            <button
-              type="button"
-              onClick={() => void handleAutoExtractFromSmile()}
-              className="flex w-full items-center justify-center gap-xs rounded-3 bg-secondary py-sm px-md text-body font-semibold text-surface shadow-drop transition-transform active:scale-98"
-            >
-              <span>✨ Skip Camera &amp; Auto-Use {current.label} from Step 1 Smile →</span>
-            </button>
-          )}
-
-          {/* Controls — gallery (left) + manual shutter (centre) + flip camera (right) */}
+          {/* Controls — gallery (left) + shutter (centre) + flip camera (right) */}
           <div className="relative mt-auto flex items-center justify-center pt-sm">
             <button
               type="button"
               aria-label="Choose a photo from your library"
               onClick={() => fileInputRef.current?.click()}
-              className="absolute left-0 grid size-11 place-items-center rounded-2 border border-border bg-surface focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="absolute left-0 grid size-11 place-items-center rounded-2 border border-border bg-surface"
               title="Upload photo from gallery"
             >
               <Image src={GalleryIcon} alt="" width={24} height={24} className="size-6" />
@@ -1049,11 +891,11 @@ export function PhotoCaptureFlow() {
 
             <button
               type="button"
-              aria-label={`Take photo — ${current.label}`}
-              onClick={triggerShutter}
-              disabled={!streamReady || countdown !== null}
+              aria-label={`Take photo — ${displayStepTitle}`}
+              onClick={captureImmediate}
+              disabled={!streamReady}
               className={cn(
-                'relative rounded-full transition-transform active:scale-95 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40',
+                'relative rounded-full transition-transform active:scale-95 disabled:opacity-40',
                 guidedMode === 'v2' &&
                   liveFeedback?.state === 'ready' &&
                   'ring-4 ring-[#34d399] ring-offset-2',
@@ -1066,8 +908,7 @@ export function PhotoCaptureFlow() {
               type="button"
               aria-label="Switch between front and back camera"
               onClick={flipCamera}
-              className="absolute right-0 flex h-11 items-center gap-2xs rounded-2 border border-border bg-surface px-sm text-nav font-medium text-foreground focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
-              title="Switch Front / Back Camera"
+              className="absolute right-0 flex h-11 items-center gap-2xs rounded-2 border border-border bg-surface px-sm text-nav font-medium text-foreground"
             >
               🔄 {facingMode === 'user' ? 'Front' : 'Back'}
             </button>
