@@ -22,6 +22,7 @@ import CameraShutterIcon from '@/icons/camera-mobile.svg'
 import GalleryIcon from '@/icons/image.png'
 
 const MAX_DIMENSION = 1280
+const ZOOM_PRESETS = [1, 1.5, 2, 2.5, 3] as const
 
 interface StepGuidance {
   icon: string
@@ -29,24 +30,27 @@ interface StepGuidance {
   subtext: string
   voicePrompt: string
   distanceTip: string
+  recommendedZoom: number
 }
 
 const STEP_GUIDANCE: Record<string, StepGuidance> = {
   'front-teeth': {
     icon: '😁',
     headline: 'Smile wide & bite gently together',
-    subtext: 'Fit both upper and lower front teeth inside the dashed arch',
+    subtext: '2x Macro Zoom active — center your upper & lower front teeth in the arch',
     voicePrompt:
-      'Step 1, Front teeth. Smile wide, bite gently together, and fit your front teeth inside the guide frame.',
-    distanceTip: 'Hold phone 10–15 cm from mouth',
+      'Step 1, Front teeth. Smile wide, bite gently together, and fit your front teeth inside the zoomed guide frame.',
+    distanceTip: '2x Macro Zoom · Hold phone 15–20 cm away',
+    recommendedZoom: 2,
   },
   'upper-gums': {
     icon: '⬆️',
     headline: 'Tilt chin UP & lift top lip with clean fingers',
     subtext: 'Expose your upper gumline where top teeth meet the gums',
     voicePrompt:
-      'Step 2, Upper gums. Tilt your chin slightly upward and lift your upper lip so your top gums are clearly visible.',
-    distanceTip: 'Tilt chin upward ~20°',
+      'Step 2, Upper gums. Tilt your chin slightly upward and lift your upper lip so your top gums fill the frame.',
+    distanceTip: '2.2x Macro Zoom · Tilt chin upward ~20°',
+    recommendedZoom: 2.2,
   },
   tongue: {
     icon: '👅',
@@ -54,7 +58,8 @@ const STEP_GUIDANCE: Record<string, StepGuidance> = {
     subtext: 'Center the top surface of your tongue inside the oval guide',
     voicePrompt:
       'Step 3, Tongue. Open your mouth wide and stick your tongue out flat inside the oval guide.',
-    distanceTip: 'Relax tongue forward in good light',
+    distanceTip: '2x Macro Zoom · Relax tongue forward',
+    recommendedZoom: 2,
   },
   'lower-gums': {
     icon: '⬇️',
@@ -62,14 +67,17 @@ const STEP_GUIDANCE: Record<string, StepGuidance> = {
     subtext: 'Expose your lower gumline and lower front tooth necks',
     voicePrompt:
       'Step 4, Lower gums. Tilt your chin slightly downward and pull your bottom lip down to show your lower gums.',
-    distanceTip: 'Tilt chin downward ~20°',
+    distanceTip: '2.2x Macro Zoom · Tilt chin downward ~20°',
+    recommendedZoom: 2.2,
   },
 }
 
 /** Plays a soft beep for the 3-second hands-free countdown timer using Web Audio API. */
 function playCountdownBeep(finalSnap = false) {
   try {
-    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
     if (!AudioCtx) return
     const ctx = new AudioCtx()
     const osc = ctx.createOscillator()
@@ -92,36 +100,36 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
     <svg
       viewBox="0 0 320 180"
       aria-hidden="true"
-      className="pointer-events-none h-44 w-72 max-w-[88%] drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)] transition-colors duration-300"
+      className="pointer-events-none h-48 w-80 max-w-[92%] drop-shadow-[0_2px_8px_rgba(0,0,0,0.75)] transition-colors duration-300"
     >
       {/* Corner alignment brackets */}
       <path
-        d="M18,42 L18,18 L46,18 M274,18 L302,18 L302,42 M18,138 L18,162 L46,162 M274,162 L302,162 L302,138"
+        d="M14,44 L14,14 L46,14 M274,14 L306,14 L306,44 M14,136 L14,166 L46,166 M274,166 L306,166 L306,136"
         fill="none"
         stroke={color}
-        strokeWidth="2.8"
+        strokeWidth="3"
         strokeLinecap="round"
       />
 
       {stepId === 'front-teeth' && (
         <>
           <path
-            d="M42,92 Q160,26 278,92 Q160,158 42,92 Z"
+            d="M32,92 Q160,18 288,92 Q160,164 32,92 Z"
             fill={`${color}18`}
             stroke={color}
-            strokeWidth="2.4"
+            strokeWidth="2.5"
             strokeDasharray="7 4"
           />
-          <line x1="62" y1="92" x2="258" y2="92" stroke={color} strokeWidth="1.6" strokeDasharray="4 4" />
-          <line x1="160" y1="54" x2="160" y2="130" stroke={color} strokeWidth="1.6" strokeDasharray="4 4" />
-          <rect x="133" y="65" width="25" height="25" rx="4" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="1.6" />
-          <rect x="162" y="65" width="25" height="25" rx="4" fill="none" stroke="rgba(255,255,255,0.75)" strokeWidth="1.6" />
-          <rect x="108" y="68" width="22" height="22" rx="4" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.4" />
-          <rect x="190" y="68" width="22" height="22" rx="4" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.4" />
-          <rect x="136" y="94" width="22" height="20" rx="4" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
-          <rect x="162" y="94" width="22" height="20" rx="4" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" />
-          <text x="160" y="15" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
-            ALIGN FRONT TEETH &amp; BITE LINE
+          <line x1="50" y1="92" x2="270" y2="92" stroke={color} strokeWidth="1.8" strokeDasharray="4 4" />
+          <line x1="160" y1="48" x2="160" y2="136" stroke={color} strokeWidth="1.8" strokeDasharray="4 4" />
+          <rect x="130" y="61" width="28" height="29" rx="5" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" />
+          <rect x="162" y="61" width="28" height="29" rx="5" fill="none" stroke="rgba(255,255,255,0.8)" strokeWidth="1.8" />
+          <rect x="102" y="65" width="25" height="25" rx="4" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
+          <rect x="193" y="65" width="25" height="25" rx="4" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="1.5" />
+          <rect x="133" y="94" width="25" height="24" rx="4" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.6" />
+          <rect x="162" y="94" width="25" height="24" rx="4" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.6" />
+          <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
+            FILL FRAME WITH FRONT TEETH &amp; GUMS
           </text>
         </>
       )}
@@ -129,31 +137,31 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
       {stepId === 'upper-gums' && (
         <>
           <path
-            d="M56,86 Q160,28 264,86 Q160,58 56,86 Z"
-            fill="rgba(244,114,182,0.22)"
+            d="M44,86 Q160,20 276,86 Q160,54 44,86 Z"
+            fill="rgba(244,114,182,0.25)"
             stroke="#f472b6"
-            strokeWidth="2.2"
+            strokeWidth="2.4"
             strokeDasharray="5 3"
           />
           <path
-            d="M52,118 Q160,36 268,118"
-            fill="none"
-            stroke={color}
-            strokeWidth="2.4"
-            strokeDasharray="7 4"
-          />
-          <path
-            d="M160,148 L160,106 M147,118 L160,104 L173,118"
+            d="M40,122 Q160,30 280,122"
             fill="none"
             stroke={color}
             strokeWidth="2.6"
+            strokeDasharray="7 4"
+          />
+          <path
+            d="M160,150 L160,106 M146,118 L160,103 L174,118"
+            fill="none"
+            stroke={color}
+            strokeWidth="2.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          <text x="160" y="15" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
-            UPPER GUMLINE TARGET ZONE
+          <text x="160" y="12" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
+            UPPER GUMLINE MACRO ZONE
           </text>
-          <text x="160" y="168" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
+          <text x="160" y="172" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
             TILT CHIN UP ↑ &amp; LIFT TOP LIP
           </text>
         </>
@@ -164,23 +172,23 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
           <ellipse
             cx="160"
             cy="88"
-            rx="88"
-            ry="54"
+            rx="98"
+            ry="60"
             fill="none"
-            stroke="rgba(255,255,255,0.4)"
-            strokeWidth="1.5"
+            stroke="rgba(255,255,255,0.45)"
+            strokeWidth="1.6"
             strokeDasharray="4 4"
           />
           <path
-            d="M112,58 Q160,46 208,58 L208,112 Q208,152 160,152 Q112,152 112,112 Z"
+            d="M104,52 Q160,40 216,52 L216,114 Q216,158 160,158 Q104,158 104,114 Z"
             fill={`${color}18`}
             stroke={color}
-            strokeWidth="2.4"
+            strokeWidth="2.6"
             strokeDasharray="7 4"
           />
-          <line x1="160" y1="64" x2="160" y2="136" stroke={color} strokeWidth="1.6" strokeDasharray="4 4" />
-          <text x="160" y="15" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
-            STICK TONGUE OUT INSIDE OVAL
+          <line x1="160" y1="58" x2="160" y2="140" stroke={color} strokeWidth="1.8" strokeDasharray="4 4" />
+          <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
+            STICK TONGUE OUT TO FILL OVAL
           </text>
         </>
       )}
@@ -188,32 +196,32 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
       {stepId === 'lower-gums' && (
         <>
           <path
-            d="M52,64 Q160,146 268,64"
-            fill="none"
-            stroke={color}
-            strokeWidth="2.4"
-            strokeDasharray="7 4"
-          />
-          <path
-            d="M56,96 Q160,152 264,96 Q160,122 56,96 Z"
-            fill="rgba(244,114,182,0.22)"
-            stroke="#f472b6"
-            strokeWidth="2.2"
-            strokeDasharray="5 3"
-          />
-          <path
-            d="M160,34 L160,76 M147,64 L160,78 L173,64"
+            d="M40,60 Q160,152 280,60"
             fill="none"
             stroke={color}
             strokeWidth="2.6"
+            strokeDasharray="7 4"
+          />
+          <path
+            d="M44,96 Q160,158 276,96 Q160,126 44,96 Z"
+            fill="rgba(244,114,182,0.25)"
+            stroke="#f472b6"
+            strokeWidth="2.4"
+            strokeDasharray="5 3"
+          />
+          <path
+            d="M160,30 L160,74 M146,62 L160,77 L174,62"
+            fill="none"
+            stroke={color}
+            strokeWidth="2.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          <text x="160" y="15" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
+          <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
             TILT CHIN DOWN ↓ &amp; PULL LOWER LIP
           </text>
-          <text x="160" y="168" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
-            LOWER GUMLINE TARGET ZONE
+          <text x="160" y="172" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
+            LOWER GUMLINE MACRO ZONE
           </text>
         </>
       )}
@@ -239,10 +247,12 @@ export function PhotoCaptureFlow() {
     steps.map(() => undefined),
   )
 
-  // Non-technical user helper states
+  // Non-technical user helper states + Macro Dental Zoom (defaults to 2.0x Macro!)
   const [guidedMode, setGuidedMode] = useState<'v2' | 'v1'>('v2')
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [isMirrored, setIsMirrored] = useState(true)
+  const [zoomLevel, setZoomLevel] = useState<number>(2)
+  const [hwZoomApplied, setHwZoomApplied] = useState<number>(1)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [screenLightOn, setScreenLightOn] = useState(false)
   const [timerEnabled, setTimerEnabled] = useState(false)
@@ -253,12 +263,17 @@ export function PhotoCaptureFlow() {
   const streamRef = useRef<MediaStream | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pinchStartDistRef = useRef<number | null>(null)
+  const pinchStartZoomRef = useRef<number>(2)
 
   const [captures, setCaptures] = useState<string[]>([])
   const [streamReady, setStreamReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Start / restart camera when facingMode changes
+  // Effective digital/sensor crop factor after accounting for any hardware optical zoom
+  const effectiveCropZoom = guidedMode === 'v1' ? 1 : Math.max(1, zoomLevel / hwZoomApplied)
+
+  // Request high-resolution 1920x1440 / 1080p stream so 2x-3x macro sensor crop remains crisp
   useEffect(() => {
     let cancelled = false
     setStreamReady(false)
@@ -273,8 +288,8 @@ export function PhotoCaptureFlow() {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facingMode },
-            width: { ideal: 1280 },
-            height: { ideal: 960 },
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
           },
           audio: false,
         })
@@ -303,7 +318,37 @@ export function PhotoCaptureFlow() {
     }
   }, [facingMode])
 
-  // Hardware torch control (when rear camera supports torch)
+  // Apply hardware camera zoom when the device lens supports it; fallback/combine with sensor crop
+  useEffect(() => {
+    const track = streamRef.current?.getVideoTracks()?.[0]
+    if (!track || !streamReady) {
+      setHwZoomApplied(1)
+      return
+    }
+    try {
+      const capabilities = track.getCapabilities?.() as
+        | { zoom?: { min: number; max: number } }
+        | undefined
+      if (capabilities?.zoom && capabilities.zoom.max > 1) {
+        const targetHwZoom =
+          guidedMode === 'v1'
+            ? capabilities.zoom.min || 1
+            : Math.min(capabilities.zoom.max, Math.max(capabilities.zoom.min || 1, zoomLevel))
+        void track
+          .applyConstraints({
+            advanced: [{ zoom: targetHwZoom } as MediaTrackConstraintSet],
+          })
+          .then(() => setHwZoomApplied(targetHwZoom))
+          .catch(() => setHwZoomApplied(1))
+      } else {
+        setHwZoomApplied(1)
+      }
+    } catch {
+      setHwZoomApplied(1)
+    }
+  }, [zoomLevel, guidedMode, streamReady])
+
+  // Hardware torch control
   useEffect(() => {
     const track = streamRef.current?.getVideoTracks()?.[0]
     if (!track) return
@@ -315,13 +360,18 @@ export function PhotoCaptureFlow() {
         })
       }
     } catch {
-      // Fallback is the bright white screen light ring
+      // Screen ring light handles illumination when hardware torch is absent
     }
   }, [screenLightOn, streamReady])
 
-  // Spoken voice instructions when step changes and voiceEnabled is true
+  // Spoken voice instructions when step changes
   useEffect(() => {
-    if (!voiceEnabled || phase !== 'capture' || typeof window === 'undefined' || !('speechSynthesis' in window)) {
+    if (
+      !voiceEnabled ||
+      phase !== 'capture' ||
+      typeof window === 'undefined' ||
+      !('speechSynthesis' in window)
+    ) {
       return
     }
     try {
@@ -339,17 +389,42 @@ export function PhotoCaptureFlow() {
     }
   }, [step, voiceEnabled, phase, guidance.voicePrompt])
 
-  // Real-time 350ms live frame analyzer for the Red / Amber / Green alignment ring
+  // Real-time 350ms live frame analyzer on the EXACT zoomed-in mouth region
   useEffect(() => {
     if (!streamReady || phase !== 'capture' || guidedMode !== 'v2') return
     const id = setInterval(() => {
       if (videoRef.current) {
-        const result = assessLiveVideoFrame(videoRef.current)
+        const result = assessLiveVideoFrame(videoRef.current, effectiveCropZoom)
         if (result) setLiveFeedback(result)
       }
     }, 350)
     return () => clearInterval(id)
-  }, [streamReady, phase, guidedMode])
+  }, [streamReady, phase, guidedMode, effectiveCropZoom])
+
+  // Two-finger pinch-to-zoom handlers on the camera viewfinder
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX
+      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY
+      pinchStartDistRef.current = Math.hypot(dx, dy)
+      pinchStartZoomRef.current = zoomLevel
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX
+      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY
+      const dist = Math.hypot(dx, dy)
+      const ratio = dist / Math.max(1, pinchStartDistRef.current)
+      const nextZoom = Math.round(Math.min(3.5, Math.max(1, pinchStartZoomRef.current * ratio)) * 10) / 10
+      setZoomLevel(nextZoom)
+    }
+  }
+
+  const handleTouchEnd = () => {
+    pinchStartDistRef.current = null
+  }
 
   const handleCaptured = useCallback(
     async (dataUrl: string) => {
@@ -410,20 +485,34 @@ export function PhotoCaptureFlow() {
     }
   })
 
+  /**
+   * Captures the exact zoomed-in Macro ROI from the raw camera sensor stream!
+   * Instead of saving the wide-angle room/face, this crops directly to the
+   * center `1 / effectiveCropZoom` mouth window and outputs up to 1280px of
+   * pure dental/gingival/tongue detail at 0.92 JPEG quality.
+   */
   const captureImmediate = useCallback(() => {
     const video = videoRef.current
     if (!video || !video.videoWidth) return
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(video.videoWidth, video.videoHeight))
-    const width = Math.round(video.videoWidth * scale)
-    const height = Math.round(video.videoHeight * scale)
+
+    const z = Math.max(1, Math.min(3.5, effectiveCropZoom))
+    const srcW = video.videoWidth / z
+    const srcH = video.videoHeight / z
+    const srcX = (video.videoWidth - srcW) / 2
+    const srcY = (video.videoHeight - srcH) / 2
+
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(srcW, srcH))
+    const width = Math.max(1, Math.round(srcW * scale))
+    const height = Math.max(1, Math.round(srcH * scale))
+
     const canvas = document.createElement('canvas')
     canvas.width = width
     canvas.height = height
     const ctx = canvas.getContext('2d')
     if (!ctx) return
-    ctx.drawImage(video, 0, 0, width, height)
-    void handleCaptured(canvas.toDataURL('image/jpeg', 0.88))
-  }, [handleCaptured])
+    ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, width, height)
+    void handleCaptured(canvas.toDataURL('image/jpeg', 0.92))
+  }, [handleCaptured, effectiveCropZoom])
 
   const triggerShutter = () => {
     if (!streamReady) return
@@ -495,7 +584,6 @@ export function PhotoCaptureFlow() {
               <BackButton fallbackHref={ROUTES.patient.guidedScan} />
             </div>
             <h1 className="text-h1 font-semibold text-foreground">Guided Scan</h1>
-            {/* Version Switcher pill so the team can compare v2 Guided vs v1 Classic live */}
             <button
               type="button"
               onClick={() => setGuidedMode((m) => (m === 'v2' ? 'v1' : 'v2'))}
@@ -524,7 +612,10 @@ export function PhotoCaptureFlow() {
             {steps.map((s, i) => (
               <span
                 key={s.id}
-                className={cn('h-2 flex-1 rounded-full', i === step ? 'bg-primary' : i < step ? 'bg-secondary' : 'bg-border')}
+                className={cn(
+                  'h-2 flex-1 rounded-full',
+                  i === step ? 'bg-primary' : i < step ? 'bg-secondary' : 'bg-border',
+                )}
               />
             ))}
           </div>
@@ -532,7 +623,9 @@ export function PhotoCaptureFlow() {
           {/* Step chip + helper bar */}
           <div aria-live="polite" className="flex flex-wrap items-center justify-between gap-xs">
             <span className="inline-flex items-center gap-xs rounded-full bg-surface px-md py-xs text-h2 font-medium shadow-drop">
-              <span className="text-primary">Step {step + 1}/{total}</span>
+              <span className="text-primary">
+                Step {step + 1}/{total}
+              </span>
               <span className="text-foreground">· {current.label}</span>
             </span>
 
@@ -589,23 +682,23 @@ export function PhotoCaptureFlow() {
             )}
           </div>
 
-          {/* Live Camera Viewfinder with SVG Dental Alignment Guide & Traffic-Light Ring */}
+          {/* Live Camera Viewfinder with Macro Zoom + SVG Dental Alignment Guide */}
           <div
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             className={cn(
               'relative aspect-[3/4] w-full overflow-hidden rounded-4 bg-foreground transition-all duration-300 md:aspect-[4/3]',
-              guidedMode === 'v2' &&
-                liveFeedback?.state === 'ready' &&
-                'ring-4 ring-[#34d399]',
-              guidedMode === 'v2' &&
-                liveFeedback?.state === 'adjust' &&
-                'ring-3 ring-[#fbbf24]',
-              guidedMode === 'v2' &&
-                liveFeedback?.state === 'invalid' &&
-                'ring-3 ring-[#f87171]',
+              guidedMode === 'v2' && liveFeedback?.state === 'ready' && 'ring-4 ring-[#34d399]',
+              guidedMode === 'v2' && liveFeedback?.state === 'adjust' && 'ring-3 ring-[#fbbf24]',
+              guidedMode === 'v2' && liveFeedback?.state === 'invalid' && 'ring-3 ring-[#f87171]',
             )}
             style={
               screenLightOn
-                ? { boxShadow: 'inset 0 0 0 14px rgba(255, 255, 255, 0.96), 0 0 32px rgba(255, 255, 255, 0.8)' }
+                ? {
+                    boxShadow:
+                      'inset 0 0 0 14px rgba(255, 255, 255, 0.96), 0 0 32px rgba(255, 255, 255, 0.8)',
+                  }
                 : undefined
             }
           >
@@ -614,10 +707,11 @@ export function PhotoCaptureFlow() {
               playsInline
               muted
               aria-label={`Camera preview — ${current.label}`}
-              className={cn(
-                'h-full w-full object-cover transition-transform',
-                isMirrored && '-scale-x-100',
-              )}
+              className="h-full w-full object-cover transition-transform duration-200 ease-out"
+              style={{
+                transform: `${isMirrored ? 'scaleX(-1) ' : ''}scale(${effectiveCropZoom})`,
+                transformOrigin: 'center center',
+              }}
             />
 
             {(!streamReady || error) && (
@@ -640,10 +734,10 @@ export function PhotoCaptureFlow() {
                     className={cn(
                       'rounded-full px-md py-2xs text-nav font-semibold shadow-md backdrop-blur-md transition-colors',
                       liveFeedback?.state === 'ready'
-                        ? 'bg-[#065f46]/90 text-[#a7f3d0] border border-[#34d399]'
+                        ? 'border border-[#34d399] bg-[#065f46]/90 text-[#a7f3d0]'
                         : liveFeedback?.state === 'adjust'
-                          ? 'bg-[#78350f]/90 text-[#fde68a] border border-[#fbbf24]'
-                          : 'bg-[#7f1d1d]/90 text-[#fecaca] border border-[#f87171]',
+                          ? 'border border-[#fbbf24] bg-[#78350f]/90 text-[#fde68a]'
+                          : 'border border-[#f87171] bg-[#7f1d1d]/90 text-[#fecaca]',
                     )}
                   >
                     {liveFeedback?.message ?? guidance.distanceTip}
@@ -662,17 +756,43 @@ export function PhotoCaptureFlow() {
                   )}
                 </div>
 
-                {/* Bottom plain-English positioning card inside viewfinder */}
-                <div className="rounded-3 bg-foreground/80 px-md py-sm text-surface backdrop-blur-md border border-surface/15">
-                  <div className="flex items-center gap-sm">
-                    <span className="text-h1" aria-hidden="true">
-                      {guidance.icon}
-                    </span>
-                    <div className="flex flex-1 flex-col">
-                      <span className="text-body font-semibold text-surface">
-                        {guidance.headline}
+                {/* Interactive Macro Zoom Selector Bar + Bottom Instruction Card */}
+                <div className="flex flex-col gap-xs">
+                  {/* Macro Zoom Pill Selector (Pointer events enabled!) */}
+                  <div className="pointer-events-auto mx-auto flex items-center gap-2xs rounded-full border border-surface/20 bg-foreground/75 px-xs py-2xs backdrop-blur-md">
+                    <span className="px-xs text-nav font-medium text-surface/80">🔍 Zoom:</span>
+                    {ZOOM_PRESETS.map((preset) => {
+                      const active = Math.abs(zoomLevel - preset) < 0.2
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setZoomLevel(preset)}
+                          className={cn(
+                            'rounded-full px-sm py-2xs text-nav font-semibold transition-all',
+                            active
+                              ? 'bg-[#2dd4bf] text-[#042f2e] shadow-sm'
+                              : 'text-surface hover:bg-surface/15',
+                          )}
+                        >
+                          {preset}x{preset === 2 ? ' ★' : ''}
+                        </button>
+                      )
+                    })}
+                  </div>
+
+                  {/* Plain-English positioning card */}
+                  <div className="rounded-3 border border-surface/15 bg-foreground/80 px-md py-sm text-surface backdrop-blur-md">
+                    <div className="flex items-center gap-sm">
+                      <span className="text-h1" aria-hidden="true">
+                        {guidance.icon}
                       </span>
-                      <span className="text-nav text-surface/80">{guidance.subtext}</span>
+                      <div className="flex flex-1 flex-col">
+                        <span className="text-body font-semibold text-surface">
+                          {guidance.headline}
+                        </span>
+                        <span className="text-nav text-surface/80">{guidance.subtext}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -705,7 +825,9 @@ export function PhotoCaptureFlow() {
               disabled={!streamReady || countdown !== null}
               className={cn(
                 'relative rounded-full transition-transform active:scale-95 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40',
-                guidedMode === 'v2' && liveFeedback?.state === 'ready' && 'ring-4 ring-[#34d399] ring-offset-2',
+                guidedMode === 'v2' &&
+                  liveFeedback?.state === 'ready' &&
+                  'ring-4 ring-[#34d399] ring-offset-2',
               )}
             >
               <CameraShutterIcon aria-hidden="true" className="size-14 text-foreground-secondary" />

@@ -215,12 +215,24 @@ export async function assessImageQuality(dataUrl: string): Promise<ImageQuality>
  * Ultra-fast synchronous live video frame analyser (~1.5ms at 160px width).
  * Powers the live Red / Amber / Green traffic-light guide ring on the camera
  * viewfinder so non-technical users know immediately when to press the shutter.
+ *
+ * `cropZoom` (1.0–3.0) crops the center of the video stream to match the exact
+ * zoomed-in region currently displayed in the viewfinder.
  */
-export function assessLiveVideoFrame(video: HTMLVideoElement): LiveFrameFeedback | null {
+export function assessLiveVideoFrame(
+  video: HTMLVideoElement,
+  cropZoom = 1,
+): LiveFrameFeedback | null {
   if (!video.videoWidth || !video.videoHeight) return null
-  const scale = Math.min(1, LIVE_SAMPLE_WIDTH / video.videoWidth)
-  const width = Math.max(1, Math.round(video.videoWidth * scale))
-  const height = Math.max(1, Math.round(video.videoHeight * scale))
+  const z = Math.max(1, Math.min(3.5, cropZoom))
+  const srcW = video.videoWidth / z
+  const srcH = video.videoHeight / z
+  const srcX = (video.videoWidth - srcW) / 2
+  const srcY = (video.videoHeight - srcH) / 2
+
+  const scale = Math.min(1, LIVE_SAMPLE_WIDTH / srcW)
+  const width = Math.max(1, Math.round(srcW * scale))
+  const height = Math.max(1, Math.round(srcH * scale))
 
   const canvas = document.createElement('canvas')
   canvas.width = width
@@ -228,7 +240,7 @@ export function assessLiveVideoFrame(video: HTMLVideoElement): LiveFrameFeedback
   const ctx = canvas.getContext('2d', { willReadFrequently: true })
   if (!ctx) return null
 
-  ctx.drawImage(video, 0, 0, width, height)
+  ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, width, height)
   const imageData = ctx.getImageData(0, 0, width, height)
   const gray = toGrayscale(imageData.data)
   const luminance = meanLuminance(gray)
