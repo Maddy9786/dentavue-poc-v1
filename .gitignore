@@ -13,7 +13,11 @@ out/
 dist/
 build/
 
-# Environment variables
+# Environment variables & Private Keys
+.env
+.env.*
+!.env.example
+*.pem
 
 
 
