@@ -24,82 +24,56 @@ const SHUTTER_COOLDOWN_AFTER_STEP_MS = 550
 
 interface PoseInstruction {
   title: string
+  imageSrc: string
   step1: string
   step2: string
 }
 
 const POSE_INSTRUCTIONS: Record<string, PoseInstruction> = {
   'front-teeth': {
-    title: 'How to take Front Teeth:',
+    title: 'Sample Pose · Front Teeth',
+    imageSrc: '/images/mouth-previous.png',
     step1: '1. Bite your back teeth gently together.',
-    step2: '2. Smile wide ("EEEE") so both top & bottom front teeth fill the frame.',
+    step2: '2. Smile wide ("EEEE") so both upper & lower front teeth show.',
   },
   'upper-gums': {
-    title: 'How to take Upper Gums:',
-    step1: '1. Use two clean fingers to lift your TOP lip up (or smile wide showing top gums).',
-    step2: '2. Tilt your chin slightly UP so the pink gums above your top teeth are clear.',
+    title: 'Sample Pose · Upper Gums',
+    imageSrc: '/images/guide-upper-gums.png',
+    step1: '1. Use two clean fingers to lift your TOP lip up.',
+    step2: '2. Tilt chin slightly UP so the pink gums above top teeth show.',
   },
   tongue: {
-    title: 'How to take Tongue:',
+    title: 'Sample Pose · Tongue',
+    imageSrc: '/images/guide-tongue.png',
     step1: '1. Open your mouth wide ("AAAH").',
-    step2: '2. Stick your tongue out flat and relaxed inside the oval guide.',
+    step2: '2. Stick your tongue out flat and relaxed toward the camera.',
   },
   'lower-gums': {
-    title: 'How to take Lower Gums:',
+    title: 'Sample Pose · Lower Gums',
+    imageSrc: '/images/guide-lower-gums.png',
     step1: '1. Use two clean fingers to pull your BOTTOM lip down.',
-    step2: '2. Tilt your chin slightly DOWN so the pink gums below your bottom teeth show.',
+    step2: '2. Tilt chin slightly DOWN so the pink gums below bottom teeth show.',
   },
 }
 
-/** Visual Illustrated Pose Diagram showing the exact lip/gum/tooth position for each step. */
-function PoseIllustrationCard({ stepId }: { stepId: string }) {
+/** Real Photographic Sample Pose Card showing an actual photo example for each step. */
+function PosePhotoCard({ stepId }: { stepId: string }) {
   const info = POSE_INSTRUCTIONS[stepId] ?? POSE_INSTRUCTIONS['front-teeth']!
 
   return (
     <div className="flex items-center gap-md rounded-3 border border-border bg-surface p-sm shadow-drop">
-      {/* Step-specific visual anatomical diagram */}
-      <div className="flex size-16 shrink-0 items-center justify-center rounded-2 bg-[#0f172a] p-2xs">
-        {stepId === 'front-teeth' && (
-          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
-            <path d="M8,30 Q40,8 72,30 Q40,52 8,30 Z" fill="#f472b6" opacity="0.35" stroke="#f472b6" strokeWidth="2" />
-            <rect x="24" y="19" width="14" height="11" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
-            <rect x="40" y="19" width="14" height="11" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
-            <rect x="26" y="31" width="12" height="9" rx="2" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
-            <rect x="40" y="31" width="12" height="9" rx="2" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
-          </svg>
-        )}
-        {stepId === 'upper-gums' && (
-          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
-            {/* Pink upper gum arch highlighted */}
-            <path d="M10,34 Q40,10 70,34 L64,42 Q40,24 16,42 Z" fill="#f43f5e" stroke="#fb7185" strokeWidth="1.5" />
-            {/* Upper teeth below the pink gumline */}
-            <rect x="25" y="32" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
-            <rect x="40" y="32" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
-            {/* Upward arrow showing lifting top lip */}
-            <path d="M40,22 L40,7 M33,13 L40,6 L47,13" fill="none" stroke="#5eead4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-        {stepId === 'tongue' && (
-          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
-            <ellipse cx="40" cy="28" rx="26" ry="18" fill="#450a0a" stroke="#f472b6" strokeWidth="2" />
-            <path d="M25,24 Q40,18 55,24 L55,40 Q55,54 40,54 Q25,54 25,40 Z" fill="#fb7185" stroke="#fda4af" strokeWidth="1.5" />
-            <line x1="40" y1="24" x2="40" y2="46" stroke="#e11d48" strokeWidth="1.5" strokeDasharray="3 2" />
-          </svg>
-        )}
-        {stepId === 'lower-gums' && (
-          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
-            {/* Lower teeth above the pink gumline */}
-            <rect x="25" y="16" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
-            <rect x="40" y="16" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
-            {/* Pink lower gum arch highlighted */}
-            <path d="M16,18 Q40,36 64,18 L70,26 Q40,50 10,26 Z" fill="#f43f5e" stroke="#fb7185" strokeWidth="1.5" />
-            {/* Downward arrow showing pulling bottom lip down */}
-            <path d="M40,38 L40,53 M33,47 L40,54 L47,47" fill="none" stroke="#5eead4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
+      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-2 border border-border bg-border">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={info.imageSrc}
+          alt={info.title}
+          className="h-full w-full object-cover"
+        />
+        <span className="absolute bottom-0 left-0 right-0 bg-foreground/70 py-0.5 text-center text-[10px] font-semibold text-surface">
+          Match Pose
+        </span>
       </div>
 
-      {/* Plain-English 2-step photo guide */}
       <div className="flex min-w-0 flex-1 flex-col gap-2xs">
         <span className="text-body font-semibold text-foreground">{info.title}</span>
         <span className="text-nav text-foreground-secondary">{info.step1}</span>
@@ -209,6 +183,8 @@ export function PhotoCaptureFlow() {
   const [streamReady, setStreamReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // Reliable camera startup: uses standard facingMode constraint (without rigid
+  // width/height that can fail on mobile/laptop sensors) and falls back to { video: true }.
   useEffect(() => {
     let cancelled = false
     setStreamReady(false)
@@ -220,14 +196,19 @@ export function PhotoCaptureFlow() {
       }
       streamRef.current?.getTracks().forEach((track) => track.stop())
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1920 },
-            height: { ideal: 1440 },
-          },
-          audio: false,
-        })
+        let stream: MediaStream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode },
+            audio: false,
+          })
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          })
+        }
+
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop())
           return
@@ -464,8 +445,8 @@ export function PhotoCaptureFlow() {
             </div>
           </div>
 
-          {/* Visual Illustrated "How to Capture" Instruction Card */}
-          <PoseIllustrationCard stepId={current.id} />
+          {/* Real Photographic Sample Pose Card */}
+          <PosePhotoCard stepId={current.id} />
 
           {/* Clean Camera Preview */}
           <div className="relative aspect-[3/4] w-full overflow-hidden rounded-4 bg-foreground md:aspect-[3/2]">
