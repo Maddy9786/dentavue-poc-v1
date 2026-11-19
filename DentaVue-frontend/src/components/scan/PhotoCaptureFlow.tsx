@@ -31,45 +31,91 @@ interface StepGuidance {
   subtext: string
   voicePrompt: string
   distanceTip: string
+  recommendedZoom: number
 }
 
 const STEP_GUIDANCE: Record<string, StepGuidance> = {
   'front-teeth': {
     icon: '😁',
-    shortPose: 'Pose 1: Wide Smile',
-    headline: 'Smile wide & bite gently together',
-    subtext: 'Fit your upper & lower front teeth in the arch, then tap the shutter',
+    shortPose: 'Say "EEEE"',
+    headline: 'Wide smile showing teeth & gums',
+    subtext: 'Show both upper & lower teeth and gums — we can also auto-extract gums from this!',
     voicePrompt:
-      'Step 1, Front teeth. Smile wide, center your front teeth inside the guide frame, and tap the shutter button when ready.',
+      'Step 1, Front teeth and gums. Give a wide smile showing your top and bottom teeth and gums, then tap the shutter.',
     distanceTip: '2x Macro Zoom · Hold phone 15–20 cm away',
+    recommendedZoom: 2,
   },
   'upper-gums': {
     icon: '⬆️',
-    shortPose: 'Pose 2: Lift Top Lip',
-    headline: 'Tilt chin UP & lift top lip with fingers',
-    subtext: 'Expose your upper gumline inside the pink zone, then tap the shutter',
+    shortPose: 'Say "AAAH" or Auto-Use',
+    headline: 'Show upper gums — or tap Auto-Use below!',
+    subtext: 'Open wide and angle phone slightly up, OR tap "✨ Auto-Use from Step 1 Smile"',
     voicePrompt:
-      'Step 2, Upper gums. Tilt your chin slightly up, lift your top lip to show your upper gums, and tap the shutter button.',
-    distanceTip: '2x Macro Zoom · Tilt chin upward ~20°',
+      'Step 2, Upper gums. Open your mouth wide to show your top gums, or tap the Auto-Use button to extract them from your Step 1 smile.',
+    distanceTip: '1.5x Wide Angle · Easy tilt view',
+    recommendedZoom: 1.5,
   },
   tongue: {
     icon: '👅',
-    shortPose: 'Pose 3: Tongue Out',
-    headline: 'Open mouth wide & stick your tongue out flat',
-    subtext: 'Center your tongue inside the oval guide, then tap the shutter',
+    shortPose: 'Stick Tongue Out',
+    headline: 'Open mouth & stick your tongue out comfortably',
+    subtext: 'Place your tongue inside the oval guide, then tap the shutter button',
     voicePrompt:
-      'Step 3, Tongue. Open your mouth wide, stick your tongue out flat inside the oval, and tap the shutter button.',
-    distanceTip: '2x Macro Zoom · Relax tongue forward',
+      'Step 3, Tongue. Open your mouth and stick your tongue out comfortably inside the oval, then tap the shutter.',
+    distanceTip: '1.5x Wide Angle · Relax tongue forward',
+    recommendedZoom: 1.5,
   },
   'lower-gums': {
     icon: '⬇️',
-    shortPose: 'Pose 4: Pull Bottom Lip',
-    headline: 'Tilt chin DOWN & pull bottom lip down gently',
-    subtext: 'Expose your lower gumline inside the pink zone, then tap the shutter',
+    shortPose: 'Lower Lip or Auto-Use',
+    headline: 'Show lower gums — or tap Auto-Use below!',
+    subtext: 'Pull bottom lip down gently, OR tap "✨ Auto-Use from Step 1 Smile"',
     voicePrompt:
-      'Step 4, Lower gums. Tilt your chin slightly down, pull your bottom lip down to show your lower gums, and tap the shutter button.',
-    distanceTip: '2x Macro Zoom · Tilt chin downward ~20°',
+      'Step 4, Lower gums. Pull your lower lip down to show your bottom gums, or tap the Auto-Use button to extract them from your Step 1 smile.',
+    distanceTip: '1.5x Wide Angle · Easy tilt view',
+    recommendedZoom: 1.5,
   },
+}
+
+/**
+ * Automatically extracts a high-resolution Upper Gums or Lower Gums macro crop
+ * from the Step 1 Wide Smile photo (`front-teeth`), saving the user from awkward
+ * lip-pulling or head-tilting on a mobile phone.
+ */
+function cropGumRegionFromSmile(
+  smileDataUrl: string,
+  targetStepId: 'upper-gums' | 'lower-gums',
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const srcX = Math.round(img.width * 0.06)
+      const srcW = Math.round(img.width * 0.88)
+      // Upper gums sit in the upper-middle arch (6%..60% Y); Lower gums sit in the lower-middle arch (40%..94% Y)
+      const srcY =
+        targetStepId === 'upper-gums'
+          ? Math.round(img.height * 0.06)
+          : Math.round(img.height * 0.4)
+      const srcH = Math.round(img.height * 0.54)
+
+      const scale = Math.min(1, MAX_DIMENSION / Math.max(srcW, srcH))
+      const outW = Math.max(1, Math.round(srcW * scale))
+      const outH = Math.max(1, Math.round(srcH * scale))
+
+      const canvas = document.createElement('canvas')
+      canvas.width = outW
+      canvas.height = outH
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        resolve(null)
+        return
+      }
+      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, outW, outH)
+      resolve(canvas.toDataURL('image/jpeg', 0.92))
+    }
+    img.onerror = () => resolve(null)
+    img.src = smileDataUrl
+  })
 }
 
 /** Plays an audio cue (soft tick during 3s countdown, chime on capture, or low buzz on wrong photo). */
@@ -84,11 +130,11 @@ function playAudioCue(type: 'tick' | 'snap' | 'reject') {
     const gain = ctx.createGain()
     osc.type = type === 'reject' ? 'sawtooth' : 'sine'
     osc.frequency.value = type === 'snap' ? 920 : type === 'reject' ? 240 : 540
-    gain.gain.value = type === 'snap' ? 0.12 : type === 'reject' ? 0.1 : 0.07
+    gain.gain.value = type === 'snap' ? 0.12 : type === 'reject' ? 0.09 : 0.07
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
-    osc.stop(ctx.currentTime + (type === 'snap' ? 0.18 : type === 'reject' ? 0.28 : 0.08))
+    osc.stop(ctx.currentTime + (type === 'snap' ? 0.18 : type === 'reject' ? 0.25 : 0.08))
   } catch {
     // Ignore audio context restrictions if not permitted
   }
@@ -143,7 +189,7 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
           <rect x="133" y="94" width="25" height="24" rx="4" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.6" />
           <rect x="162" y="94" width="25" height="24" rx="4" fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth="1.6" />
           <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
-            FILL FRAME WITH FRONT TEETH &amp; GUMS
+            WIDE SMILE: SHOW TEETH &amp; GUMS
           </text>
         </>
       )}
@@ -173,10 +219,10 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
             strokeLinejoin="round"
           />
           <text x="160" y="12" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
-            UPPER GUMLINE MACRO ZONE
+            UPPER GUMS &amp; TOP TEETH
           </text>
           <text x="160" y="172" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
-            TILT CHIN UP ↑ &amp; LIFT TOP LIP
+            OPEN WIDE OR TAP &quot;AUTO-USE&quot; BELOW
           </text>
         </>
       )}
@@ -202,7 +248,7 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
           />
           <line x1="160" y1="58" x2="160" y2="140" stroke={color} strokeWidth="1.8" strokeDasharray="4 4" />
           <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="700">
-            STICK TONGUE OUT TO FILL OVAL
+            STICK TONGUE OUT INSIDE OVAL
           </text>
         </>
       )}
@@ -232,10 +278,10 @@ function AngleGuideOverlay({ stepId, color }: { stepId: string; color: string })
             strokeLinejoin="round"
           />
           <text x="160" y="12" textAnchor="middle" fill={color} fontSize="11" fontWeight="600">
-            TILT CHIN DOWN ↓ &amp; PULL LOWER LIP
+            SHOW LOWER GUMS OR TAP &quot;AUTO-USE&quot;
           </text>
           <text x="160" y="172" textAnchor="middle" fill="#f472b6" fontSize="11" fontWeight="700">
-            LOWER GUMLINE MACRO ZONE
+            LOWER GUMS &amp; BOTTOM TEETH
           </text>
         </>
       )}
@@ -261,7 +307,6 @@ export function PhotoCaptureFlow() {
     steps.map(() => undefined),
   )
 
-  // Non-technical user helper states — waits patiently on every step until user taps Shutter!
   const [guidedMode, setGuidedMode] = useState<'v2' | 'v1'>('v2')
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [isMirrored, setIsMirrored] = useState(true)
@@ -277,6 +322,7 @@ export function PhotoCaptureFlow() {
     stepLabel: string
     reason: string
     image: string
+    quality: ImageQuality
   } | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -292,7 +338,17 @@ export function PhotoCaptureFlow() {
 
   const effectiveCropZoom = guidedMode === 'v1' ? 1 : Math.max(1, zoomLevel / hwZoomApplied)
 
-  // Request high-resolution 1920x1440 stream so 2x-3x macro sensor crop remains crisp
+  // Can we auto-extract Upper Gums or Lower Gums from the Step 1 Smile photo?
+  const canAutoExtractGum =
+    (current.id === 'upper-gums' || current.id === 'lower-gums') && Boolean(captures[0])
+
+  // Auto-adjust zoom when step changes: 2.0x for Step 1 (Front Teeth), 1.5x for Steps 2, 3, 4 (wider view when tilting!)
+  useEffect(() => {
+    setZoomLevel(guidance.recommendedZoom)
+    setRejectedAttempt(null)
+  }, [step, guidance.recommendedZoom])
+
+  // Request high-resolution 1920x1440 stream
   useEffect(() => {
     let cancelled = false
     setStreamReady(false)
@@ -397,7 +453,7 @@ export function PhotoCaptureFlow() {
     }
   }, [step, voiceEnabled, phase, guidedMode, guidance.voicePrompt])
 
-  // Real-time 350ms live frame analyzer (visual traffic-light feedback only — never auto-advances!)
+  // Real-time 350ms live frame analyzer
   useEffect(() => {
     if (!streamReady || phase !== 'capture' || guidedMode !== 'v2') return
     const id = setInterval(() => {
@@ -408,34 +464,10 @@ export function PhotoCaptureFlow() {
     return () => clearInterval(id)
   }, [streamReady, phase, guidedMode, effectiveCropZoom, current.id])
 
-  const handleCaptured = useCallback(
-    async (dataUrl: string) => {
+  /** Saves a confirmed photo for the current step and moves to the next step (or review). */
+  const commitStepCapture = useCallback(
+    (dataUrl: string, quality: ImageQuality) => {
       const capturedStep = step
-      const stepObj = steps[capturedStep]!
-      const quality = await assessImageQuality(dataUrl, stepObj.id)
-
-      // STRICT PER-STEP GATE: If the user snapped or uploaded something that is NOT
-      // a close-up of their mouth/teeth/gums/tongue (or is pitch black), DO NOT
-      // advance to the next step! Stay on this step and demand the right photo.
-      if (quality.isNonOral) {
-        const reason =
-          quality.rejectionDetail ??
-          `Wrong photo! We couldn't see your ${stepObj.label.toLowerCase()}. Please align your ${stepObj.label.toLowerCase()} inside the guide frame and try again.`
-        setRejectedAttempt({
-          stepLabel: stepObj.label,
-          reason,
-          image: dataUrl,
-        })
-        playAudioCue('reject')
-        if (voiceEnabled && guidedMode === 'v2') {
-          speakEnglish(
-            `Wrong photo for Step ${capturedStep + 1}. We could not see your ${stepObj.label.toLowerCase()}. Please align your ${stepObj.label.toLowerCase()} inside the guide frame and try again.`,
-          )
-        }
-        return
-      }
-
-      // Valid oral photo (sharp or slightly blurry) — clear any rejection alert, save, and advance!
       setRejectedAttempt(null)
 
       setCaptures((prev) => {
@@ -464,8 +496,64 @@ export function PhotoCaptureFlow() {
       }
       setPhase('review')
     },
-    [step, steps, total, voiceEnabled, guidedMode],
+    [step, total, voiceEnabled, guidedMode],
   )
+
+  const handleCaptured = useCallback(
+    async (dataUrl: string) => {
+      const capturedStep = step
+      const stepObj = steps[capturedStep]!
+      const quality = await assessImageQuality(dataUrl, stepObj.id)
+
+      // If non-oral or too dark, pause on this step and show the warning modal
+      // (which lets the user either Retake, Use Photo Anyway, or Auto-Extract from Step 1 Smile)
+      if (quality.isNonOral) {
+        const reason =
+          quality.rejectionDetail ??
+          `We couldn't clearly see your ${stepObj.label.toLowerCase()}. Please align inside the guide and retake, or tap "Use Photo Anyway".`
+        setRejectedAttempt({
+          stepLabel: stepObj.label,
+          reason,
+          image: dataUrl,
+          quality,
+        })
+        playAudioCue('reject')
+        if (voiceEnabled && guidedMode === 'v2') {
+          speakEnglish(
+            `We could not clearly see your ${stepObj.label.toLowerCase()}. Tap Retake to try again, or tap Use Photo Anyway to continue.`,
+          )
+        }
+        return
+      }
+
+      commitStepCapture(dataUrl, quality)
+    },
+    [step, steps, voiceEnabled, guidedMode, commitStepCapture],
+  )
+
+  /**
+   * 1-Tap Smart Helper for Steps 2 (Upper Gums) & 4 (Lower Gums):
+   * Crops the upper or lower gumline arch directly from the Step 1 Smile photo!
+   */
+  const handleAutoExtractFromSmile = async () => {
+    const smilePhoto = captures[0]
+    if (!smilePhoto) return
+    if (current.id !== 'upper-gums' && current.id !== 'lower-gums') return
+
+    setShutterFlash(true)
+    playAudioCue('snap')
+    setTimeout(() => setShutterFlash(false), 180)
+
+    const cropped = await cropGumRegionFromSmile(smilePhoto, current.id)
+    if (!cropped) return
+    commitStepCapture(cropped, {
+      status: 'sharp',
+      isNonOral: false,
+      luminance: 120,
+      sharpness: 250,
+      oralRatio: 0.35,
+    })
+  }
 
   /**
    * Captures the exact zoomed-in Macro ROI from the raw camera sensor stream
@@ -638,7 +726,7 @@ export function PhotoCaptureFlow() {
             </button>
           </header>
 
-          {/* Progress bar — users can also tap any already-captured step tab to jump back */}
+          {/* Progress bar */}
           <div
             role="progressbar"
             aria-valuemin={1}
@@ -762,38 +850,64 @@ export function PhotoCaptureFlow() {
               <div className="pointer-events-none absolute inset-0 z-30 bg-surface opacity-90 transition-opacity" />
             )}
 
-            {/* Strict Per-Step Wrong-Photo Blocking Modal Overlay */}
+            {/* Warning Modal Overlay (with Retake, Auto-Extract from Smile, AND Use Photo Anyway options!) */}
             {rejectedAttempt && (
               <div
                 role="alertdialog"
                 aria-labelledby="rejected-photo-title"
-                className=" absolute inset-0 z-20 flex flex-col items-center justify-center bg-foreground/85 p-lg text-center backdrop-blur-md"
+                className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-foreground/85 p-md text-center backdrop-blur-md"
               >
-                <div className="flex max-w-xs flex-col items-center gap-sm rounded-4 border-2 border-[#f87171] bg-[#450a0a]/95 p-md text-surface shadow-xl">
+                <div className="flex max-w-xs flex-col items-center gap-sm rounded-4 border-2 border-[#fbbf24] bg-[#1c1917]/95 p-md text-surface shadow-xl">
                   <div className="flex items-center gap-sm">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={rejectedAttempt.image}
-                      alt="Rejected capture"
-                      className="size-14 rounded-2 border border-[#f87171] object-cover"
+                      alt="Captured preview"
+                      className="size-14 rounded-2 border border-[#fbbf24] object-cover"
                     />
                     <div className="text-left">
-                      <span className="inline-block rounded bg-[#f87171] px-xs py-2xs text-nav font-bold text-[#450a0a]">
-                        🚫 WRONG PHOTO
+                      <span className="inline-block rounded bg-[#fbbf24] px-xs py-2xs text-nav font-bold text-[#1c1917]">
+                        ⚠️ CHECK PHOTO
                       </span>
                       <h2 id="rejected-photo-title" className="text-h2 font-semibold text-surface">
-                        Not {rejectedAttempt.stepLabel}
+                        {rejectedAttempt.stepLabel}
                       </h2>
                     </div>
                   </div>
-                  <p className="text-body text-[#fecaca]">{rejectedAttempt.reason}</p>
-                  <button
-                    type="button"
-                    onClick={() => setRejectedAttempt(null)}
-                    className="mt-xs w-full rounded-3 bg-[#f87171] py-sm text-body font-bold text-[#450a0a] transition-transform active:scale-95"
-                  >
-                    Retake {rejectedAttempt.stepLabel} Now
-                  </button>
+                  <p className="text-nav text-[#fde68a]">{rejectedAttempt.reason}</p>
+
+                  <div className="flex w-full flex-col gap-xs pt-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setRejectedAttempt(null)}
+                      className="w-full rounded-3 bg-[#fbbf24] py-xs text-body font-bold text-[#1c1917] transition-transform active:scale-95"
+                    >
+                      🔄 Retake {rejectedAttempt.stepLabel}
+                    </button>
+
+                    {canAutoExtractGum && (
+                      <button
+                        type="button"
+                        onClick={() => void handleAutoExtractFromSmile()}
+                        className="w-full rounded-3 bg-[#2dd4bf] py-xs text-body font-bold text-[#042f2e] transition-transform active:scale-95"
+                      >
+                        ✨ Auto-Use from Step 1 Smile →
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        commitStepCapture(rejectedAttempt.image, {
+                          ...rejectedAttempt.quality,
+                          isNonOral: false,
+                        })
+                      }
+                      className="w-full rounded-3 border border-surface/30 bg-surface/10 py-xs text-nav font-semibold text-surface transition-transform active:scale-95"
+                    >
+                      ✓ Use This Photo Anyway &amp; Continue →
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -840,8 +954,19 @@ export function PhotoCaptureFlow() {
                   )}
                 </div>
 
-                {/* Interactive Macro Zoom Selector Bar + Bottom Instruction Card */}
+                {/* Interactive Macro Zoom Selector + 1-Tap Auto-Extract Gum Helper + Instruction Card */}
                 <div className="flex flex-col gap-xs">
+                  {/* 1-Tap Smart Auto-Extract Button on Upper Gums (Step 2) & Lower Gums (Step 4) */}
+                  {canAutoExtractGum && (
+                    <button
+                      type="button"
+                      onClick={() => void handleAutoExtractFromSmile()}
+                      className="pointer-events-auto mx-auto flex items-center gap-xs rounded-full border border-[#5eead4] bg-[#0f766e]/95 px-md py-xs text-nav font-bold text-surface shadow-lg backdrop-blur-md transition-transform active:scale-95"
+                    >
+                      <span>✨ Hard to tilt? Auto-Use {current.label} from Step 1 Smile →</span>
+                    </button>
+                  )}
+
                   {/* Macro Zoom Pill Selector */}
                   <div className="pointer-events-auto mx-auto flex items-center gap-2xs rounded-full border border-surface/20 bg-foreground/75 px-xs py-2xs backdrop-blur-md">
                     <span className="px-xs text-nav font-medium text-surface/80">🔍 Zoom:</span>
@@ -859,7 +984,7 @@ export function PhotoCaptureFlow() {
                               : 'text-surface hover:bg-surface/15',
                           )}
                         >
-                          {preset}x{preset === 2 ? ' ★' : ''}
+                          {preset}x{preset === guidance.recommendedZoom ? ' ★' : ''}
                         </button>
                       )
                     })}
