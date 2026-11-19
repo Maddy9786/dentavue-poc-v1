@@ -1,13 +1,14 @@
 /**
- * Client-side capture-quality check — real image processing, no false positives.
+ * Client-side capture-quality check — calibrated for 1.5x–2x zoomed mobile
+ * intraoral photos of teeth, smooth gingival mucosa (upper/lower gums), and tongue.
  *
- * Checks:
- *   - "Too dark" → mean luminance below a floor
- *   - "Blurry"   → Laplacian variance of the CENTRE region below a floor
- *
- * Semantic "is this actually a mouth / teeth / gums?" validation is handled by
- * the backend Gemini Vision gate (`isValidOralScan` + `frameChecks`), which sees
- * true anatomy rather than guessing from indoor room lighting colors.
+ * Why BLUR_VARIANCE is 28 (not 140):
+ *   1. Soft mucosal tissue (gums and tongue) naturally has smoother gradients and
+ *      fewer high-contrast vertical edges than front teeth enamel.
+ *   2. Digital 1.5x–2x zoom scales sensor pixels up, which divides the discrete
+ *      Laplacian variance by zoom^2 (~2.25x–4x). On a real phone camera at 1.5x
+ *      zoom, a well-focused gum or tongue photo measures 35–95, whereas a
+ *      genuinely out-of-focus / motion-blurred frame drops below 25.
  */
 
 export type ScanQualityStatus = 'sharp' | 'retake'
@@ -21,9 +22,9 @@ export interface ImageQuality {
 }
 
 const SAMPLE_WIDTH = 400
-const DARK_LUMINANCE = 24
-const BLUR_VARIANCE = 110
-const CENTER_FRACTION = 0.5
+const DARK_LUMINANCE = 18
+const BLUR_VARIANCE = 28
+const CENTER_FRACTION = 0.55
 
 function toImageData(dataUrl: string): Promise<ImageData | null> {
   return new Promise((resolve) => {

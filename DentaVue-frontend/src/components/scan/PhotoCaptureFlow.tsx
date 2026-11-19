@@ -19,19 +19,97 @@ import GalleryIcon from '@/icons/image.png'
 const MAX_DIMENSION = 1280
 const ZOOM_OPTIONS = [1, 1.5, 2] as const
 
-// How long (ms) to freeze and show "✓ Captured!" before advancing to the next step.
-// Also locks the shutter button so a mobile double-tap can NEVER capture the same frame into the next step.
 const STEP_CONFIRM_FREEZE_MS = 650
 const SHUTTER_COOLDOWN_AFTER_STEP_MS = 550
 
-const STEP_HINTS: Record<string, string> = {
-  'front-teeth': 'Smile wide — align your upper & lower front teeth inside the frame',
-  'upper-gums': 'Open wide & tilt chin slightly up to show your upper teeth & gums',
-  tongue: 'Open wide & stick your tongue out inside the oval guide',
-  'lower-gums': 'Open wide & tilt chin slightly down to show your lower teeth & gums',
+interface PoseInstruction {
+  title: string
+  step1: string
+  step2: string
 }
 
-/** Clean, minimal SVG framing guide for each of the 4 steps. */
+const POSE_INSTRUCTIONS: Record<string, PoseInstruction> = {
+  'front-teeth': {
+    title: 'How to take Front Teeth:',
+    step1: '1. Bite your back teeth gently together.',
+    step2: '2. Smile wide ("EEEE") so both top & bottom front teeth fill the frame.',
+  },
+  'upper-gums': {
+    title: 'How to take Upper Gums:',
+    step1: '1. Use two clean fingers to lift your TOP lip up (or smile wide showing top gums).',
+    step2: '2. Tilt your chin slightly UP so the pink gums above your top teeth are clear.',
+  },
+  tongue: {
+    title: 'How to take Tongue:',
+    step1: '1. Open your mouth wide ("AAAH").',
+    step2: '2. Stick your tongue out flat and relaxed inside the oval guide.',
+  },
+  'lower-gums': {
+    title: 'How to take Lower Gums:',
+    step1: '1. Use two clean fingers to pull your BOTTOM lip down.',
+    step2: '2. Tilt your chin slightly DOWN so the pink gums below your bottom teeth show.',
+  },
+}
+
+/** Visual Illustrated Pose Diagram showing the exact lip/gum/tooth position for each step. */
+function PoseIllustrationCard({ stepId }: { stepId: string }) {
+  const info = POSE_INSTRUCTIONS[stepId] ?? POSE_INSTRUCTIONS['front-teeth']!
+
+  return (
+    <div className="flex items-center gap-md rounded-3 border border-border bg-surface p-sm shadow-drop">
+      {/* Step-specific visual anatomical diagram */}
+      <div className="flex size-16 shrink-0 items-center justify-center rounded-2 bg-[#0f172a] p-2xs">
+        {stepId === 'front-teeth' && (
+          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
+            <path d="M8,30 Q40,8 72,30 Q40,52 8,30 Z" fill="#f472b6" opacity="0.35" stroke="#f472b6" strokeWidth="2" />
+            <rect x="24" y="19" width="14" height="11" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
+            <rect x="40" y="19" width="14" height="11" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
+            <rect x="26" y="31" width="12" height="9" rx="2" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+            <rect x="40" y="31" width="12" height="9" rx="2" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" />
+          </svg>
+        )}
+        {stepId === 'upper-gums' && (
+          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
+            {/* Pink upper gum arch highlighted */}
+            <path d="M10,34 Q40,10 70,34 L64,42 Q40,24 16,42 Z" fill="#f43f5e" stroke="#fb7185" strokeWidth="1.5" />
+            {/* Upper teeth below the pink gumline */}
+            <rect x="25" y="32" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
+            <rect x="40" y="32" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
+            {/* Upward arrow showing lifting top lip */}
+            <path d="M40,22 L40,7 M33,13 L40,6 L47,13" fill="none" stroke="#5eead4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+        {stepId === 'tongue' && (
+          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
+            <ellipse cx="40" cy="28" rx="26" ry="18" fill="#450a0a" stroke="#f472b6" strokeWidth="2" />
+            <path d="M25,24 Q40,18 55,24 L55,40 Q55,54 40,54 Q25,54 25,40 Z" fill="#fb7185" stroke="#fda4af" strokeWidth="1.5" />
+            <line x1="40" y1="24" x2="40" y2="46" stroke="#e11d48" strokeWidth="1.5" strokeDasharray="3 2" />
+          </svg>
+        )}
+        {stepId === 'lower-gums' && (
+          <svg viewBox="0 0 80 60" className="h-full w-full" aria-hidden="true">
+            {/* Lower teeth above the pink gumline */}
+            <rect x="25" y="16" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
+            <rect x="40" y="16" width="13" height="12" rx="2" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1" />
+            {/* Pink lower gum arch highlighted */}
+            <path d="M16,18 Q40,36 64,18 L70,26 Q40,50 10,26 Z" fill="#f43f5e" stroke="#fb7185" strokeWidth="1.5" />
+            {/* Downward arrow showing pulling bottom lip down */}
+            <path d="M40,38 L40,53 M33,47 L40,54 L47,47" fill="none" stroke="#5eead4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </div>
+
+      {/* Plain-English 2-step photo guide */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2xs">
+        <span className="text-body font-semibold text-foreground">{info.title}</span>
+        <span className="text-nav text-foreground-secondary">{info.step1}</span>
+        <span className="text-nav text-foreground-secondary">{info.step2}</span>
+      </div>
+    </div>
+  )
+}
+
+/** Clean, minimal SVG framing guide inside the live camera preview. */
 function FramingGuide({ stepId }: { stepId: string }) {
   const isTongue = stepId === 'tongue'
   return (
@@ -79,8 +157,8 @@ function FramingGuide({ stepId }: { stepId: string }) {
             <path
               d="M55,75 Q150,32 245,75"
               fill="none"
-              stroke="#5eead4"
-              strokeWidth="2"
+              stroke="#fb7185"
+              strokeWidth="2.5"
               strokeDasharray="4 3"
             />
           )}
@@ -88,8 +166,8 @@ function FramingGuide({ stepId }: { stepId: string }) {
             <path
               d="M55,95 Q150,138 245,95"
               fill="none"
-              stroke="#5eead4"
-              strokeWidth="2"
+              stroke="#fb7185"
+              strokeWidth="2.5"
               strokeDasharray="4 3"
             />
           )}
@@ -120,7 +198,6 @@ export function PhotoCaptureFlow() {
   const [zoom, setZoom] = useState<number>(1.5)
   const isMirrored = facingMode === 'user'
 
-  // Synchronous lock + visual frozen preview so double-taps can NEVER duplicate a photo into the next step
   const shutterLockedRef = useRef(false)
   const [shutterLocked, setShutterLocked] = useState(false)
   const [frozenPreview, setFrozenPreview] = useState<{ image: string; label: string } | null>(null)
@@ -181,7 +258,6 @@ export function PhotoCaptureFlow() {
   const handleCaptured = async (dataUrl: string, capturedStep: number) => {
     const stepLabel = steps[capturedStep]?.label ?? `Step ${capturedStep + 1}`
 
-    // 1. Immediately freeze the captured frame on screen so the user sees it clicked
     setFrozenPreview({ image: dataUrl, label: stepLabel })
 
     setCaptures((prev) => {
@@ -197,7 +273,6 @@ export function PhotoCaptureFlow() {
       return next
     })
 
-    // 2. Hold the frozen confirmation briefly so the user knows this step is done
     await new Promise((resolve) => setTimeout(resolve, STEP_CONFIRM_FREEZE_MS))
     setFrozenPreview(null)
 
@@ -210,10 +285,7 @@ export function PhotoCaptureFlow() {
     }
 
     if (capturedStep < total - 1) {
-      // Advance to the exact next step index (never functional `s + 1` which can double-increment)
       setStep(capturedStep + 1)
-      // Keep the shutter button locked for an extra 550ms after step change so an accidental
-      // second tap on the touchscreen can NEVER capture the old pose into the new step!
       setTimeout(() => {
         shutterLockedRef.current = false
         setShutterLocked(false)
@@ -259,7 +331,6 @@ export function PhotoCaptureFlow() {
   })
 
   const capture = () => {
-    // Hard synchronous guard against mobile touchscreen double-taps
     if (shutterLockedRef.current) return
     const video = videoRef.current
     if (!video || !video.videoWidth) return
@@ -326,7 +397,7 @@ export function PhotoCaptureFlow() {
             <h1 className="text-h1 font-semibold text-foreground">Guided Scan</h1>
           </header>
 
-          {/* 4-Slot Interactive Step Strip — shows captured thumbnails & lets user tap any step */}
+          {/* 4-Slot Interactive Step Strip */}
           <div className="grid grid-cols-4 gap-xs">
             {steps.map((s, i) => {
               const img = captures[i]
@@ -369,34 +440,32 @@ export function PhotoCaptureFlow() {
             })}
           </div>
 
-          {/* Step chip + clean instruction text */}
-          <div aria-live="polite" className="flex flex-col gap-xs">
-            <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-xs rounded-full bg-surface px-md py-sm text-h2 font-medium shadow-drop">
-                <span className="text-primary">Step {step + 1}</span>
-                <span className="text-foreground">· {current.label}</span>
-              </span>
+          {/* Step chip + Zoom selector */}
+          <div aria-live="polite" className="flex items-center justify-between">
+            <span className="inline-flex items-center gap-xs rounded-full bg-surface px-md py-xs text-h2 font-medium shadow-drop">
+              <span className="text-primary">Step {step + 1}</span>
+              <span className="text-foreground">· {current.label}</span>
+            </span>
 
-              <div className="inline-flex items-center gap-2xs rounded-full bg-surface p-2xs shadow-drop">
-                {ZOOM_OPTIONS.map((z) => (
-                  <button
-                    key={z}
-                    type="button"
-                    onClick={() => setZoom(z)}
-                    className={cn(
-                      'rounded-full px-sm py-2xs text-nav font-semibold transition-colors',
-                      zoom === z ? 'bg-primary text-surface' : 'text-foreground-secondary',
-                    )}
-                  >
-                    {z}x
-                  </button>
-                ))}
-              </div>
+            <div className="inline-flex items-center gap-2xs rounded-full bg-surface p-2xs shadow-drop">
+              {ZOOM_OPTIONS.map((z) => (
+                <button
+                  key={z}
+                  type="button"
+                  onClick={() => setZoom(z)}
+                  className={cn(
+                    'rounded-full px-sm py-2xs text-nav font-semibold transition-colors',
+                    zoom === z ? 'bg-primary text-surface' : 'text-foreground-secondary',
+                  )}
+                >
+                  {z}x
+                </button>
+              ))}
             </div>
-            <p className="text-body text-foreground-secondary">
-              {STEP_HINTS[current.id] ?? 'Center your mouth inside the guide frame'}
-            </p>
           </div>
+
+          {/* Visual Illustrated "How to Capture" Instruction Card */}
+          <PoseIllustrationCard stepId={current.id} />
 
           {/* Clean Camera Preview */}
           <div className="relative aspect-[3/4] w-full overflow-hidden rounded-4 bg-foreground md:aspect-[3/2]">
