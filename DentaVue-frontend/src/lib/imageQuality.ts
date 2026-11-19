@@ -2,13 +2,17 @@
  * Client-side capture-quality & oral-presence check — real image processing.
  *
  * Runs on the canvas the camera already produces, so it is free, instant, works
- * offline, and rejects a bad or non-dental shot BEFORE upload.
+ * offline, and blocks a non-dental shot IMMEDIATELY on the current step before
+ * allowing the user to advance to the next step.
  *
  * Distinguishes an ACTUAL close-up of teeth/gums/tongue from plain facial skin
- * (cheeks, forehead, closed mouth) or random background objects by requiring:
- *   1. Deep vascular red/pink mucosa (lips, gingiva, tongue: Cr >= 152, R - G >= 24)
- *   2. Dental/oral contrast inside the target arch (bright tooth enamel pixels
- *      AND/OR dark inner-oral-cavity pixels adjacent to mucosa).
+ * (cheeks, forehead, closed mouth), hands, or random background objects by requiring:
+ *   1. Deep vascular red/pink mucosa (lips, gingiva, tongue: Cr >= 151, R - G >= 24)
+ *   2. Angle-appropriate dental/oral signature inside the target frame:
+ *      - Teeth/Gum steps ('front-teeth', 'upper-gums', 'lower-gums') require BOTH
+ *        vascular gum/lip tissue AND bright low-saturation tooth enamel pixels.
+ *      - Tongue step ('tongue') requires strong central vascular tongue tissue +
+ *        open-mouth contrast.
  */
 
 export type ScanQualityStatus = 'sharp' | 'retake'
@@ -25,8 +29,12 @@ export interface LiveFrameFeedback {
 
 export interface ImageQuality {
   status: ScanQualityStatus
-  /** Short reason shown on the review card when status is 'retake'. */
+  /** True when the photo is NOT a valid oral/dental photo (blocks step advancement). */
+  isNonOral?: boolean
+  /** Short reason shown on the review card or rejection alert when status is 'retake'. */
   flag?: string
+  /** Detailed user-facing reason explaining why the photo was rejected on the current step. */
+  rejectionDetail?: string
   /** Raw metrics, exposed for tuning/telemetry — not shown to the user. */
   luminance: number
   sharpness: number
@@ -37,9 +45,9 @@ const SAMPLE_WIDTH = 400
 const LIVE_SAMPLE_WIDTH = 160
 
 const DARK_LUMINANCE = 30
-const BLUR_VARIANCE = 135
-const MIN_ORAL_SCORE = 0.08
-const CENTER_FRACTION = 0.55
+const BLUR_VARIANCE = 130
+const MIN_ORAL_SCORE = 0.085
+const CENTER_FRACTION = 0.56
 
 /** Draws a data URL to a normalised-width canvas and returns its pixels. */
 function toImageData(dataUrl: string): Promise<ImageData | null> {
@@ -110,23 +118,18 @@ interface OralSignatureMetrics {
   deepMucosaRatio: number
   enamelRatio: number
   skinOnly: boolean
+  isValidForStep: boolean
 }
 
 /**
- * Distinguishes an OPEN MOUTH / TEETH / GUMS / TONGUE from ordinary facial skin
- * or background objects inside the central target region.
- *
- * Ordinary facial skin has mild red chrominance (Cr 136–149, R - G ~ 12–22) and
- * uniform luminance.
- * Actual lips, gums, and tongue mucosa have much stronger vascular redness
- * (Cr >= 151, R - G >= 25), AND a smile/open mouth simultaneously contains bright
- * low-saturation tooth enamel pixels (R,G,B > 135, low chroma spread) or deep
- * intraoral cavity contrast.
+ * Distinguishes an OPEN MOUTH / TEETH / GUMS / TONGUE from ordinary facial skin,
+ * hands, walls, screens, or background objects inside the central target region.
  */
 function analyzeOralSignature(
   data: Uint8ClampedArray,
   width: number,
   height: number,
+  stepId = 'front-teeth',
 ): OralSignatureMetrics {
   const marginX = Math.floor((width * (1 - CENTER_FRACTION)) / 2)
   const marginY = Math.floor((height * (1 - CENTER_FRACTION)) / 2)
@@ -155,23 +158,23 @@ function analyzeOralSignature(
 
       // 1. Deep vascular pink/red (gums, tongue, inner lips) — strictly redder than facial skin
       const isDeepMucosa =
-        r > 75 &&
-        r - g >= 25 &&
-        r - b >= 22 &&
-        g < r * 0.82 &&
-        cr >= 151 &&
+        r > 72 &&
+        r - g >= 24 &&
+        r - b >= 20 &&
+        g < r * 0.83 &&
+        cr >= 150 &&
         cr <= 205 &&
         cb >= 80 &&
-        cb <= 130
+        cb <= 132
 
-      // 2. Ordinary facial skin (cheeks, forehead, chin)
+      // 2. Ordinary facial skin (cheeks, forehead, chin, hand)
       const isMildSkin =
         !isDeepMucosa &&
         r > 70 &&
         r > g + 10 &&
         r > b + 12 &&
         cr >= 136 &&
-        cr < 151 &&
+        cr < 150 &&
         cb >= 78 &&
         cb <= 128
 
@@ -179,10 +182,10 @@ function analyzeOralSignature(
       const maxC = Math.max(r, g, b)
       const minC = Math.min(r, g, b)
       const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC
-      const isEnamel = luma >= 140 && r >= 135 && g >= 130 && b >= 115 && saturation <= 0.26
+      const isEnamel = luma >= 135 && r >= 130 && g >= 125 && b >= 110 && saturation <= 0.28
 
       // 4. Dark inner mouth cavity shadow
-      const isDarkCavity = luma < 42
+      const isDarkCavity = luma < 45
 
       if (isDeepMucosa) deepMucosaPixels += 1
       else if (isMildSkin) mildSkinPixels += 1
@@ -192,7 +195,7 @@ function analyzeOralSignature(
   }
 
   if (totalPixels === 0) {
-    return { score: 0, deepMucosaRatio: 0, enamelRatio: 0, skinOnly: false }
+    return { score: 0, deepMucosaRatio: 0, enamelRatio: 0, skinOnly: false, isValidForStep: false }
   }
 
   const deepMucosaRatio = deepMucosaPixels / totalPixels
@@ -200,64 +203,110 @@ function analyzeOralSignature(
   const enamelRatio = enamelPixels / totalPixels
   const darkCavityRatio = darkCavityPixels / totalPixels
 
-  // If the frame is mostly normal facial skin with almost no deep gum/tongue red
-  // and almost no tooth enamel, it's a closed face / cheek / forehead — NOT an open mouth scan!
-  const skinOnly = mildSkinRatio > 0.25 && deepMucosaRatio < 0.055 && enamelRatio < 0.04
+  // Plain face / hand / cheek with mouth closed
+  const skinOnly = mildSkinRatio > 0.24 && deepMucosaRatio < 0.055 && enamelRatio < 0.035
 
-  if (deepMucosaRatio < 0.035) {
-    return { score: deepMucosaRatio, deepMucosaRatio, enamelRatio, skinOnly }
-  }
+  const score =
+    deepMucosaRatio < 0.032
+      ? deepMucosaRatio
+      : Math.min(
+          1,
+          deepMucosaRatio * 1.2 +
+            Math.min(0.25, enamelRatio * 1.1) +
+            Math.min(0.08, darkCavityRatio * 0.5),
+        )
 
-  // Score rewards combination of vascular gum/lip/tongue tissue + bright tooth enamel / oral cavity
-  const score = Math.min(
-    1,
-    deepMucosaRatio * 1.2 + Math.min(0.25, enamelRatio * 1.1) + Math.min(0.08, darkCavityRatio * 0.5),
-  )
+  // Step-specific verification:
+  // - Teeth/Gums steps require BOTH vascular gum/lip tissue AND tooth enamel / oral cavity contrast
+  // - Tongue step requires strong vascular tongue mucosa (deepMucosaRatio >= 0.065)
+  const isTongueStep = stepId === 'tongue'
+  const isValidForStep = isTongueStep
+    ? !skinOnly && deepMucosaRatio >= 0.055 && score >= MIN_ORAL_SCORE
+    : !skinOnly &&
+      deepMucosaRatio >= 0.035 &&
+      (enamelRatio >= 0.015 || darkCavityRatio >= 0.03) &&
+      score >= MIN_ORAL_SCORE
 
-  return { score, deepMucosaRatio, enamelRatio, skinOnly }
+  return { score, deepMucosaRatio, enamelRatio, skinOnly, isValidForStep }
 }
 
-/** The verdict, from pixels. Darkness → No Mouth → Blur priority. */
-function verdict(luminance: number, sharpness: number, oral: OralSignatureMetrics): ImageQuality {
+const STEP_LABELS: Record<string, string> = {
+  'front-teeth': 'Front teeth',
+  'upper-gums': 'Upper gums & top teeth',
+  tongue: 'Tongue',
+  'lower-gums': 'Lower gums & bottom teeth',
+}
+
+/** The verdict, from pixels. Blocks non-oral & dark photos immediately; allows slightly blurry oral photos to proceed with a flag. */
+function verdict(
+  luminance: number,
+  sharpness: number,
+  oral: OralSignatureMetrics,
+  stepId = 'front-teeth',
+): ImageQuality {
+  const stepName = STEP_LABELS[stepId] ?? 'mouth'
+
   if (luminance < DARK_LUMINANCE) {
-    return { status: 'retake', flag: 'Too dark', luminance, sharpness, oralRatio: oral.score }
-  }
-  if (oral.skinOnly || oral.score < MIN_ORAL_SCORE) {
     return {
       status: 'retake',
+      isNonOral: true,
+      flag: 'Too dark',
+      rejectionDetail: `This photo is too dark to see your ${stepName.toLowerCase()}. Please turn on the 💡 Light or face a bright light and snap again.`,
+      luminance,
+      sharpness,
+      oralRatio: oral.score,
+    }
+  }
+  if (!oral.isValidForStep) {
+    return {
+      status: 'retake',
+      isNonOral: true,
       flag: 'No teeth/mouth visible',
+      rejectionDetail: oral.skinOnly
+        ? `Your mouth appears closed or out of the frame. Please open wide and align your ${stepName.toLowerCase()} inside the dashed guide to continue.`
+        : `Wrong photo! We couldn't detect your ${stepName.toLowerCase()} in this picture. Please take a real close-up of your ${stepName.toLowerCase()} to move to the next step.`,
       luminance,
       sharpness,
       oralRatio: oral.score,
     }
   }
   if (sharpness < BLUR_VARIANCE) {
-    return { status: 'retake', flag: 'Blurry', luminance, sharpness, oralRatio: oral.score }
+    return {
+      status: 'retake',
+      isNonOral: false,
+      flag: 'Blurry',
+      luminance,
+      sharpness,
+      oralRatio: oral.score,
+    }
   }
-  return { status: 'sharp', luminance, sharpness, oralRatio: oral.score }
+  return { status: 'sharp', isNonOral: false, luminance, sharpness, oralRatio: oral.score }
 }
 
 /**
- * Assess a captured image (a data URL from the camera canvas or a picked file).
+ * Assess a captured image (a data URL from the camera canvas or a picked file)
+ * for a specific guided-scan step.
  */
-export async function assessImageQuality(dataUrl: string): Promise<ImageQuality> {
+export async function assessImageQuality(
+  dataUrl: string,
+  stepId = 'front-teeth',
+): Promise<ImageQuality> {
   const imageData = await toImageData(dataUrl)
-  if (!imageData) return { status: 'sharp', luminance: 0, sharpness: 0, oralRatio: 1 }
+  if (!imageData) return { status: 'sharp', isNonOral: false, luminance: 0, sharpness: 0, oralRatio: 1 }
   const gray = toGrayscale(imageData.data)
   const lum = meanLuminance(gray)
   const sharp = centerLaplacianVariance(gray, imageData.width, imageData.height)
-  const oral = analyzeOralSignature(imageData.data, imageData.width, imageData.height)
-  return verdict(lum, sharp, oral)
+  const oral = analyzeOralSignature(imageData.data, imageData.width, imageData.height, stepId)
+  return verdict(lum, sharp, oral, stepId)
 }
 
 /**
  * Ultra-fast synchronous live video frame analyser (~1.5ms at 160px width).
- * Powers the live Red / Amber / Green traffic-light guide ring on the camera
- * viewfinder so non-technical users know immediately when to press the shutter.
  */
 export function assessLiveVideoFrame(
   video: HTMLVideoElement,
   cropZoom = 1,
+  stepId = 'front-teeth',
 ): LiveFrameFeedback | null {
   if (!video.videoWidth || !video.videoHeight) return null
   const z = Math.max(1, Math.min(3.5, cropZoom))
@@ -281,7 +330,8 @@ export function assessLiveVideoFrame(
   const gray = toGrayscale(imageData.data)
   const luminance = meanLuminance(gray)
   const sharpness = centerLaplacianVariance(gray, width, height)
-  const oral = analyzeOralSignature(imageData.data, width, height)
+  const oral = analyzeOralSignature(imageData.data, width, height, stepId)
+  const stepName = STEP_LABELS[stepId] ?? 'teeth & gums'
 
   if (luminance < DARK_LUMINANCE) {
     return {
@@ -295,25 +345,25 @@ export function assessLiveVideoFrame(
   if (oral.skinOnly) {
     return {
       state: 'adjust',
-      message: 'Open mouth / smile wide to show your teeth & gums inside the guide',
+      message: `Open mouth wide to show your ${stepName.toLowerCase()} inside the guide`,
       luminance,
       sharpness,
       oralRatio: oral.score,
     }
   }
-  if (oral.score < MIN_ORAL_SCORE) {
+  if (!oral.isValidForStep) {
     return {
       state: 'invalid',
-      message: 'Point camera at your mouth & fill the dashed guide',
+      message: `Point camera at your ${stepName.toLowerCase()} & fill the guide`,
       luminance,
       sharpness,
       oralRatio: oral.score,
     }
   }
-  if (sharpness < 55 || oral.score < 0.14) {
+  if (sharpness < 52 || oral.score < 0.13) {
     return {
       state: 'adjust',
-      message: 'Almost there — bring teeth closer & hold steady',
+      message: `Almost there — bring ${stepName.toLowerCase()} closer & hold steady`,
       luminance,
       sharpness,
       oralRatio: oral.score,
@@ -321,7 +371,7 @@ export function assessLiveVideoFrame(
   }
   return {
     state: 'ready',
-    message: '✓ Teeth & gums aligned! Tap the shutter button below to capture',
+    message: `✓ ${stepName} aligned! Tap the shutter button below to capture`,
     luminance,
     sharpness,
     oralRatio: oral.score,

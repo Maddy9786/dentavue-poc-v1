@@ -72,8 +72,8 @@ const STEP_GUIDANCE: Record<string, StepGuidance> = {
   },
 }
 
-/** Plays an audio cue (soft tick during 3s countdown, or chime on capture). */
-function playAudioCue(type: 'tick' | 'snap') {
+/** Plays an audio cue (soft tick during 3s countdown, chime on capture, or low buzz on wrong photo). */
+function playAudioCue(type: 'tick' | 'snap' | 'reject') {
   try {
     const AudioCtx =
       window.AudioContext ||
@@ -82,13 +82,13 @@ function playAudioCue(type: 'tick' | 'snap') {
     const ctx = new AudioCtx()
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = type === 'snap' ? 920 : 540
-    gain.gain.value = type === 'snap' ? 0.12 : 0.07
+    osc.type = type === 'reject' ? 'sawtooth' : 'sine'
+    osc.frequency.value = type === 'snap' ? 920 : type === 'reject' ? 240 : 540
+    gain.gain.value = type === 'snap' ? 0.12 : type === 'reject' ? 0.1 : 0.07
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
-    osc.stop(ctx.currentTime + (type === 'snap' ? 0.18 : 0.08))
+    osc.stop(ctx.currentTime + (type === 'snap' ? 0.18 : type === 'reject' ? 0.28 : 0.08))
   } catch {
     // Ignore audio context restrictions if not permitted
   }
@@ -273,6 +273,11 @@ export function PhotoCaptureFlow() {
   const [countdown, setCountdown] = useState<number | null>(null)
   const [shutterFlash, setShutterFlash] = useState(false)
   const [liveFeedback, setLiveFeedback] = useState<LiveFrameFeedback | null>(null)
+  const [rejectedAttempt, setRejectedAttempt] = useState<{
+    stepLabel: string
+    reason: string
+    image: string
+  } | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -397,22 +402,48 @@ export function PhotoCaptureFlow() {
     if (!streamReady || phase !== 'capture' || guidedMode !== 'v2') return
     const id = setInterval(() => {
       if (!videoRef.current) return
-      const result = assessLiveVideoFrame(videoRef.current, effectiveCropZoom)
+      const result = assessLiveVideoFrame(videoRef.current, effectiveCropZoom, current.id)
       if (result) setLiveFeedback(result)
     }, 350)
     return () => clearInterval(id)
-  }, [streamReady, phase, guidedMode, effectiveCropZoom])
+  }, [streamReady, phase, guidedMode, effectiveCropZoom, current.id])
 
   const handleCaptured = useCallback(
     async (dataUrl: string) => {
       const capturedStep = step
+      const stepObj = steps[capturedStep]!
+      const quality = await assessImageQuality(dataUrl, stepObj.id)
+
+      // STRICT PER-STEP GATE: If the user snapped or uploaded something that is NOT
+      // a close-up of their mouth/teeth/gums/tongue (or is pitch black), DO NOT
+      // advance to the next step! Stay on this step and demand the right photo.
+      if (quality.isNonOral) {
+        const reason =
+          quality.rejectionDetail ??
+          `Wrong photo! We couldn't see your ${stepObj.label.toLowerCase()}. Please align your ${stepObj.label.toLowerCase()} inside the guide frame and try again.`
+        setRejectedAttempt({
+          stepLabel: stepObj.label,
+          reason,
+          image: dataUrl,
+        })
+        playAudioCue('reject')
+        if (voiceEnabled && guidedMode === 'v2') {
+          speakEnglish(
+            `Wrong photo for Step ${capturedStep + 1}. We could not see your ${stepObj.label.toLowerCase()}. Please align your ${stepObj.label.toLowerCase()} inside the guide frame and try again.`,
+          )
+        }
+        return
+      }
+
+      // Valid oral photo (sharp or slightly blurry) — clear any rejection alert, save, and advance!
+      setRejectedAttempt(null)
+
       setCaptures((prev) => {
         const next = [...prev]
         next[capturedStep] = dataUrl
         return next
       })
 
-      const quality = await assessImageQuality(dataUrl)
       setQualities((prev) => {
         const next = [...prev]
         next[capturedStep] = quality
@@ -433,7 +464,7 @@ export function PhotoCaptureFlow() {
       }
       setPhase('review')
     },
-    [step, total, voiceEnabled, guidedMode],
+    [step, steps, total, voiceEnabled, guidedMode],
   )
 
   /**
@@ -729,6 +760,42 @@ export function PhotoCaptureFlow() {
             {/* White camera shutter flash effect on capture */}
             {shutterFlash && (
               <div className="pointer-events-none absolute inset-0 z-30 bg-surface opacity-90 transition-opacity" />
+            )}
+
+            {/* Strict Per-Step Wrong-Photo Blocking Modal Overlay */}
+            {rejectedAttempt && (
+              <div
+                role="alertdialog"
+                aria-labelledby="rejected-photo-title"
+                className=" absolute inset-0 z-20 flex flex-col items-center justify-center bg-foreground/85 p-lg text-center backdrop-blur-md"
+              >
+                <div className="flex max-w-xs flex-col items-center gap-sm rounded-4 border-2 border-[#f87171] bg-[#450a0a]/95 p-md text-surface shadow-xl">
+                  <div className="flex items-center gap-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={rejectedAttempt.image}
+                      alt="Rejected capture"
+                      className="size-14 rounded-2 border border-[#f87171] object-cover"
+                    />
+                    <div className="text-left">
+                      <span className="inline-block rounded bg-[#f87171] px-xs py-2xs text-nav font-bold text-[#450a0a]">
+                        🚫 WRONG PHOTO
+                      </span>
+                      <h2 id="rejected-photo-title" className="text-h2 font-semibold text-surface">
+                        Not {rejectedAttempt.stepLabel}
+                      </h2>
+                    </div>
+                  </div>
+                  <p className="text-body text-[#fecaca]">{rejectedAttempt.reason}</p>
+                  <button
+                    type="button"
+                    onClick={() => setRejectedAttempt(null)}
+                    className="mt-xs w-full rounded-3 bg-[#f87171] py-sm text-body font-bold text-[#450a0a] transition-transform active:scale-95"
+                  >
+                    Retake {rejectedAttempt.stepLabel} Now
+                  </button>
+                </div>
+              </div>
             )}
 
             {(!streamReady || error) && (
