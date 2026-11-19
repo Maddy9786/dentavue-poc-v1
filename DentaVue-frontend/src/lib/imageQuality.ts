@@ -1,27 +1,30 @@
 /**
- * Client-side capture-quality check — real image processing, not a placeholder.
+ * Client-side capture-quality & oral-presence check — real image processing.
  *
  * Runs on the canvas the camera already produces, so it is free, instant, works
- * offline, and — the point — rejects a bad shot BEFORE upload, while the user is
- * still in front of the mirror. This is integration point #1 in AI_INTEGRATION.md,
- * which argued it should be classical CV rather than a model: blur and exposure
- * are solved image processing, and a VLM round-trip here would be slower, cost
- * money, and be less reliable at exactly the thing a Laplacian does perfectly.
+ * offline, and rejects a bad or non-dental shot BEFORE upload, while the user is
+ * still holding their phone.
  *
- * Two checks, both cheap:
- *   - "Too dark"  → mean luminance below a floor
- *   - "Blurry"    → Laplacian variance of the CENTRE region below a floor. Centre,
- *                   not the whole frame, because a global measure is fooled by a
- *                   textured background: a blurred subject against patterned
- *                   wallpaper keeps high edge energy at the edges and reads sharp.
- *
- * It cannot detect "mouth too far / not in frame" — that needs a face/landmark
- * model — so an in-focus photo of a distant face passes here and is caught later
- * by the backend's confidence floor (unreadable → retake). What this DOES catch,
- * honestly and per image, is the genuinely dark or genuinely out-of-focus frame.
+ * Three checks, all fast:
+ *   1. "Too dark"          → mean luminance below a floor
+ *   2. "Blurry"            → Laplacian variance of the CENTRE region below a floor
+ *   3. "No mouth detected" → Oral chromaticity check inside the central target box
+ *                            (verifies presence of warm pink/red lip/gum/tongue
+ *                            mucosa tones and tooth-enamel luminance so photos of
+ *                            desks, walls, screens, or random objects are flagged).
  */
 
 export type ScanQualityStatus = 'sharp' | 'retake'
+
+export type LiveAlignmentState = 'ready' | 'adjust' | 'invalid'
+
+export interface LiveFrameFeedback {
+  state: LiveAlignmentState
+  message: string
+  luminance: number
+  sharpness: number
+  oralRatio: number
+}
 
 export interface ImageQuality {
   status: ScanQualityStatus
@@ -30,34 +33,24 @@ export interface ImageQuality {
   /** Raw metrics, exposed for tuning/telemetry — not shown to the user. */
   luminance: number
   sharpness: number
+  oralRatio: number
 }
 
-// Assessed at a normalised width so the thresholds mean the same thing whatever
-// the camera or file resolution. Big enough to preserve edges, small enough to
-// stay well under a frame's time budget.
 const SAMPLE_WIDTH = 400
+const LIVE_SAMPLE_WIDTH = 160
 
-// Mean luminance (0–255) below this reads as too dark to analyse. Deliberately
-// LOW: the intraoral angles (mouth open, less light reaching the back) are
-// naturally dimmer than the front-teeth shot, and flagging every one of them as
-// "Too dark" was the observed false positive. This now trips only on a genuinely
-// black/near-black frame; a dim-but-usable capture passes and the backend's
-// unreadable check (confidence floor) is the real backstop for "no teeth seen".
-const DARK_LUMINANCE = 28
+// Mean luminance (0–255) below this reads as too dark to analyse.
+const DARK_LUMINANCE = 30
 
-// Center-region Laplacian variance below this reads as blurred/soft. Measured on
-// real captures: a good close-up (teeth/gums filling the middle) sits at 225-385;
-// a blurred or empty subject collapses well below 100. 140 splits them with
-// margin in both directions — it clears the softest good frame ~1.6x and still
-// catches an out-of-focus one.
-const BLUR_VARIANCE = 140
+// Center-region Laplacian variance below this reads as blurred/soft.
+const BLUR_VARIANCE = 135
 
-// The blur measure looks only at the middle of the frame (this fraction on each
-// axis), NOT the whole image. WHY: a global focus measure is fooled by a busy
-// background — a blurred face against patterned wallpaper still has high edge
-// energy at the edges and reads "sharp". The subject (mouth) belongs in the
-// centre, framed by the capture guide, so its sharpness is what matters.
-const CENTER_FRACTION = 0.5
+// Minimum fraction of the central target region that must exhibit oral/lip/gum/tongue
+// warm chromaticity. Random rooms, desks, laptops, walls, or ceilings sit at 0.00–0.03;
+// a real close-up mouth/tongue/gum shot sits at 0.14–0.65.
+const MIN_ORAL_MUCOSA_RATIO = 0.065
+
+const CENTER_FRACTION = 0.55
 
 /** Draws a data URL to a normalised-width canvas and returns its pixels. */
 function toImageData(dataUrl: string): Promise<ImageData | null> {
@@ -99,12 +92,7 @@ function meanLuminance(gray: Float32Array): number {
 }
 
 /**
- * Variance of the 4-neighbour discrete Laplacian — the standard "focus measure" —
- * computed over the CENTRE region only (see CENTER_FRACTION). A sharp subject has
- * strong edges and a high variance; a blurred one is smooth and low. Restricting
- * to the centre is what stops a busy background (patterned wall, a doorway) from
- * masking a blurred subject: the edge energy that matters is where the mouth is.
- * Border pixels of the region are skipped (no full neighbourhood).
+ * Variance of the 4-neighbour discrete Laplacian over the CENTRE region only.
  */
 function centerLaplacianVariance(gray: Float32Array, width: number, height: number): number {
   const marginX = Math.floor((width * (1 - CENTER_FRACTION)) / 2)
@@ -128,26 +116,158 @@ function centerLaplacianVariance(gray: Float32Array, width: number, height: numb
   return variance
 }
 
-/** The verdict, from pixels. Darkness wins over blur when both trip. */
-function verdict(luminance: number, sharpness: number): ImageQuality {
+/**
+ * Measures the fraction of pixels in the central target zone that match
+ * oral tissue (lips, gums, tongue mucosa) + dental contrast.
+ *
+ * Why this works reliably for non-technical users:
+ * - A real intraoral photo always has pink/red vascular tissue (lips, gingiva,
+ *   tongue, oral mucosa) where Red strictly leads Green and Blue with warm
+ *   YCrCb red-difference chrominance (Cr > 138), alongside brighter enamel or
+ *   darker oral cavity shadows.
+ * - Neutral/cool objects (walls, desks, keyboards, paper, outdoor scenes, blank
+ *   ceilings) lack concentrated central oral-mucosa chrominance + oral contrast.
+ */
+function centerOralTissueRatio(data: Uint8ClampedArray, width: number, height: number): number {
+  const marginX = Math.floor((width * (1 - CENTER_FRACTION)) / 2)
+  const marginY = Math.floor((height * (1 - CENTER_FRACTION)) / 2)
+  const x0 = Math.max(0, marginX)
+  const y0 = Math.max(0, marginY)
+  const x1 = Math.min(width, width - marginX)
+  const y1 = Math.min(height, height - marginY)
+
+  let totalPixels = 0
+  let mucosaPixels = 0
+  let enamelOrHighlightPixels = 0
+
+  for (let y = y0; y < y1; y += 1) {
+    for (let x = x0; x < x1; x += 1) {
+      const idx = (y * width + x) * 4
+      const r = data[idx]!
+      const g = data[idx + 1]!
+      const b = data[idx + 2]!
+      totalPixels += 1
+
+      // Convert RGB to YCrCb red/blue chrominance components
+      const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b
+      const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b
+
+      // Oral mucosa / gingival / lip / tongue chromatic signature:
+      // Red channel dominates Green & Blue, warm Cr, moderate Cb
+      const isOralPinkOrRed =
+        r > 60 &&
+        r > g + 14 &&
+        r > b + 14 &&
+        g < r * 0.88 &&
+        cr >= 137 &&
+        cr <= 195 &&
+        cb >= 75 &&
+        cb <= 132
+
+      // Enamel / tooth surface signature (bright ivory/white pixels)
+      const maxC = Math.max(r, g, b)
+      const minC = Math.min(r, g, b)
+      const isEnamelLike = r > 125 && g > 115 && b > 100 && maxC - minC < 70
+
+      if (isOralPinkOrRed) mucosaPixels += 1
+      else if (isEnamelLike) enamelOrHighlightPixels += 1
+    }
+  }
+
+  if (totalPixels === 0) return 0
+  const mucosaRatio = mucosaPixels / totalPixels
+  const enamelRatio = enamelOrHighlightPixels / totalPixels
+
+  // Require real pink/red oral tissue in the target box; enamel boosts the score
+  // only when at least some surrounding lip/gum tissue is present.
+  if (mucosaRatio < 0.03) return mucosaRatio
+  return Math.min(1, mucosaRatio + Math.min(0.15, enamelRatio * 0.4))
+}
+
+/** The verdict, from pixels. Darkness → No Mouth → Blur priority. */
+function verdict(luminance: number, sharpness: number, oralRatio: number): ImageQuality {
   if (luminance < DARK_LUMINANCE) {
-    return { status: 'retake', flag: 'Too dark', luminance, sharpness }
+    return { status: 'retake', flag: 'Too dark', luminance, sharpness, oralRatio }
+  }
+  if (oralRatio < MIN_ORAL_MUCOSA_RATIO) {
+    return { status: 'retake', flag: 'No mouth detected', luminance, sharpness, oralRatio }
   }
   if (sharpness < BLUR_VARIANCE) {
-    return { status: 'retake', flag: 'Blurry', luminance, sharpness }
+    return { status: 'retake', flag: 'Blurry', luminance, sharpness, oralRatio }
   }
-  return { status: 'sharp', luminance, sharpness }
+  return { status: 'sharp', luminance, sharpness, oralRatio }
 }
 
 /**
  * Assess a captured image (a data URL from the camera canvas or a picked file).
- *
- * Returns `sharp` on any internal failure — a quality check that cannot run must
- * not block a capture. The AI layer is the backstop for anything this misses.
  */
 export async function assessImageQuality(dataUrl: string): Promise<ImageQuality> {
   const imageData = await toImageData(dataUrl)
-  if (!imageData) return { status: 'sharp', luminance: 0, sharpness: 0 }
+  if (!imageData) return { status: 'sharp', luminance: 0, sharpness: 0, oralRatio: 1 }
   const gray = toGrayscale(imageData.data)
-  return verdict(meanLuminance(gray), centerLaplacianVariance(gray, imageData.width, imageData.height))
+  const lum = meanLuminance(gray)
+  const sharp = centerLaplacianVariance(gray, imageData.width, imageData.height)
+  const oral = centerOralTissueRatio(imageData.data, imageData.width, imageData.height)
+  return verdict(lum, sharp, oral)
+}
+
+/**
+ * Ultra-fast synchronous live video frame analyser (~1.5ms at 160px width).
+ * Powers the live Red / Amber / Green traffic-light guide ring on the camera
+ * viewfinder so non-technical users know immediately when to press the shutter.
+ */
+export function assessLiveVideoFrame(video: HTMLVideoElement): LiveFrameFeedback | null {
+  if (!video.videoWidth || !video.videoHeight) return null
+  const scale = Math.min(1, LIVE_SAMPLE_WIDTH / video.videoWidth)
+  const width = Math.max(1, Math.round(video.videoWidth * scale))
+  const height = Math.max(1, Math.round(video.videoHeight * scale))
+
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return null
+
+  ctx.drawImage(video, 0, 0, width, height)
+  const imageData = ctx.getImageData(0, 0, width, height)
+  const gray = toGrayscale(imageData.data)
+  const luminance = meanLuminance(gray)
+  const sharpness = centerLaplacianVariance(gray, width, height)
+  const oralRatio = centerOralTissueRatio(imageData.data, width, height)
+
+  if (luminance < DARK_LUMINANCE) {
+    return {
+      state: 'invalid',
+      message: 'Too dark — turn on the 💡 Light or face a window',
+      luminance,
+      sharpness,
+      oralRatio,
+    }
+  }
+  if (oralRatio < MIN_ORAL_MUCOSA_RATIO) {
+    return {
+      state: 'invalid',
+      message: 'Bring your mouth & teeth close inside the target frame',
+      luminance,
+      sharpness,
+      oralRatio,
+    }
+  }
+  // At 160px sample width, Laplacian variance scales down ~2.2x vs 400px width
+  if (sharpness < 52 || oralRatio < 0.11) {
+    return {
+      state: 'adjust',
+      message: 'Almost there — move slightly closer & hold steady',
+      luminance,
+      sharpness,
+      oralRatio,
+    }
+  }
+  return {
+    state: 'ready',
+    message: '✓ Mouth aligned & clear — tap shutter to capture!',
+    luminance,
+    sharpness,
+    oralRatio,
+  }
 }

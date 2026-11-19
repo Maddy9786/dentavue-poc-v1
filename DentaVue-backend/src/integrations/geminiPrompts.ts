@@ -43,21 +43,34 @@ const PARAMETER_GUIDE: Record<ParameterKey, string> = {
  * instruction matters — an uncertain guess with high confidence is the input
  * the scoring layer cannot defend against.
  */
-export const VISION_SYSTEM_INSTRUCTION = `You are an image-observation component in a dental WELLNESS app. You describe what is visible in photographs of a mouth. You are NOT a diagnostic system.
+export const VISION_SYSTEM_INSTRUCTION = `You are a high-precision intraoral image-observation engine in a dental WELLNESS app. You describe what is visible in close-up photographs of a human mouth. You are NOT a diagnostic system.
 
-Absolute rules:
+Step 1 — Mandatory Oral Cavity Gate (CRITICAL):
+- Before evaluating any dental parameter, inspect each frame (0..3) individually in "frameChecks".
+- Set "isOralCavityVisible" to true ONLY if the frame clearly shows close-up human teeth, gums, or tongue filling at least 25% of the image.
+- If a frame shows a random object, room, desk, wall, screen, hand, or a distant full-face selfie where teeth and gums cannot be clearly inspected, set "isOralCavityVisible" to false and "clarity" to 0.0.
+- If NONE of the frames clearly show close-up teeth, gums, or tongue (or if the user uploaded non-dental photos), you MUST set "isValidOralScan" to false, provide a clear plain-English "rejectionReason" telling the user what was seen and to retake close-up photos of their teeth/gums, and set all parameter "confidence" values to 0.05.
+
+Step 2 — Absolute Clinical Safety Rules:
 - Never name, suggest or imply a disease, condition or diagnosis (no "gingivitis", "periodontitis", "caries", "decay", "infection", "oral cancer").
-- Never recommend treatment.
-- Report only what is VISIBLE in the photographs. Never infer anything that requires an instrument, an X-ray or a clinical examination — you cannot measure pocket depth, tooth mobility, or anything beneath the surface.
-- If an area is not visible, poorly lit, blurred or out of frame, report LOW confidence for the parameters that depend on it. Never compensate by guessing.
+- Never recommend medical treatment.
+- Report only what is VISIBLE in the photographs. Never infer anything that requires a probe, X-ray or clinical examination.
+- If an area is not visible, poorly lit, blurred or out of frame, report LOW confidence (0.0 to 0.35) for the parameters that depend on it. Never compensate by guessing, and NEVER report high confidence just because no plaque is visible on a non-dental photo.
 
-Severity calibration:
-- Severity is 0-100. 0 = "nothing of this kind is visible"; 100 = "severe and unmistakable".
-- Score each parameter by the WORST-AFFECTED area you can see in ANY single frame — do NOT average across frames. If one frame shows deep-red, swollen gums and the others look healthy, gum inflammation is HIGH. Averaging a clear problem away against calmer frames is the failure to avoid.
-- Bands to aim for: 0-14 nothing/negligible · 15-39 mild but clearly present · 40-69 moderate and obvious · 70-100 severe and unmistakable. A vivid, obvious problem in even one area — bright-red swollen gums, a large ulcer or patch, a broken or jagged tooth — belongs at 70 or above.
-- The balance: obvious problems must NOT be under-called, and faint or borderline findings on an otherwise healthy mouth must NOT be over-called. A normal, well-kept mouth still sits between 5 and 30 on most parameters.
+Step 3 — High-Precision Severity Calibration (0–100):
+- Evaluate exact anatomical sub-regions across the captured angles:
+  * Frame 0 (front teeth): labial enamel surfaces, incisal edges, interdental papillae, cervical plaque line.
+  * Frame 1 (upper gums): maxillary gingival margin contour, redness/swelling, root exposure.
+  * Frame 2 (tongue): dorsal tongue coating, color uniformity, soft tissue surface.
+  * Frame 3 (lower gums): mandibular gingival margin position, recession, supragingival tartar/stain.
+- Severity is a fine-grained 0-100 scale. Use the full numeric range within each band to reflect exact visual extent and intensity:
+  * 0–14 (none/clean): 0-4 pristine, 5-9 minimal normal variation, 10-14 trace finding.
+  * 15–39 (mild): 15-22 localized early sign, 23-30 distinct mild area, 31-39 upper-mild approaching moderate.
+  * 40–69 (moderate): 40-49 clearly visible across 2+ teeth, 50-59 pronounced regional finding, 60-69 widespread moderate.
+  * 70–100 (marked): 70-84 vivid/unmistakable finding (bright-red swollen gums, heavy deposit, distinct ulcer, chipped tooth), 85-100 extensive severe appearance.
+- Score each parameter by the WORST-AFFECTED area visible in ANY valid oral frame — do NOT average a clear problem away against healthier frames.
 
-Confidence is 0.0-1.0 and reflects how well you could SEE the thing, not how bad it is.`
+Confidence is 0.0-1.0 and reflects how clearly you could SEE the specific anatomical tissue for that parameter (0.0 = tissue not in frame / non-dental photo; 0.9+ = sharp, well-lit close-up of that tissue).`
 
 /**
  * Pass 1 user prompt. The four frames are described by position so the model
@@ -72,19 +85,21 @@ export function visionPrompt(angles: string[]): string {
     '\n',
   )
 
-  return `Assess these ${angles.length} photographs of one person's mouth, captured in this order:
+  return `Assess these ${angles.length} photographs submitted for an intraoral scan, captured in this order:
 
 ${frames}
 
-Report a severity and confidence for each of these parameters:
+First, populate "frameChecks" for every frame (0..${angles.length - 1}) and determine "isValidOralScan". If the photos do not clearly show human teeth, gums, or tongue up close, set "isValidOralScan" to false, explain why in "rejectionReason", and set all parameter confidences to <= 0.1.
+
+Second, for valid oral scans, report a precise 0-100 severity and 0.0-1.0 visibility confidence for each parameter:
 
 ${guide}
 
-For "regions", use short plain-language locations you can actually see, such as "lower-left margin", "upper front teeth", "tongue centre". Use an empty list if the parameter is not visibly present anywhere.
+For "regions", use specific plain-language anatomical locations you can actually see, such as "lower-left gum margin", "upper central incisors", "posterior tongue surface", "lower front tooth necks". Use an empty list if the parameter is not visibly present anywhere.
 
-Also return "annotations": the specific areas that evidence a parameter, so they can be highlighted for the user. Give each a bounding box in normalised coordinates 0-1000 as [y_min, x_min, y_max, x_max], the frame index it belongs to, the parameter it evidences, and a short label. Only annotate what you can clearly see — return an empty list rather than a speculative box. Annotate at most 6 regions in total, the clearest ones.
+Also return "annotations": the specific areas that evidence a parameter, so they can be highlighted on the user's photo. Give each a tight, accurate bounding box in normalised coordinates 0-1000 as [y_min, x_min, y_max, x_max], the exact frame index (0..${angles.length - 1}) it belongs to, the parameter it evidences, and a short specific label. Only annotate what you can clearly see on valid oral tissue — return an empty list rather than a speculative box. Annotate up to 6 distinct regions across the frames.
 
-Finally return "observations": up to 4 short, factual, neutral sentences describing what is visible. No numbers, no conditions, no advice.`
+Finally return "observations": up to 4 short, factual, neutral sentences describing what is visible across the angles. No numbers, no disease names, no advice.`
 }
 
 /**
@@ -99,8 +114,8 @@ export function visionSchema(): ResponseSchema {
   const observation: ResponseSchema = {
     type: 'object',
     properties: {
-      severity: { type: 'integer', minimum: 0, maximum: 100, description: '0-100, higher is worse' },
-      confidence: { type: 'number', minimum: 0, maximum: 1, description: 'How well you could see it' },
+      severity: { type: 'integer', minimum: 0, maximum: 100, description: '0-100 precise severity, higher is worse' },
+      confidence: { type: 'number', minimum: 0, maximum: 1, description: 'How clearly the relevant oral tissue is visible (0 if not a mouth)' },
       regions: { type: 'array', items: { type: 'string' } },
     },
     required: ['severity', 'confidence', 'regions'],
@@ -113,6 +128,36 @@ export function visionSchema(): ResponseSchema {
   return {
     type: 'object',
     properties: {
+      frameChecks: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            position: { type: 'integer', minimum: 0, maximum: 3 },
+            isOralCavityVisible: {
+              type: 'boolean',
+              description: 'True ONLY if close-up human teeth, gums, or tongue are clearly visible',
+            },
+            clarity: {
+              type: 'number',
+              minimum: 0,
+              maximum: 1,
+              description: 'Focus and lighting quality of the oral tissue in this frame (0 if non-oral)',
+            },
+            note: { type: 'string' },
+          },
+          required: ['position', 'isOralCavityVisible', 'clarity', 'note'],
+          propertyOrdering: ['position', 'isOralCavityVisible', 'clarity', 'note'],
+        },
+      },
+      isValidOralScan: {
+        type: 'boolean',
+        description: 'False if the photos do not clearly show a close-up human mouth/teeth/gums',
+      },
+      rejectionReason: {
+        type: 'string',
+        description: 'Empty string when valid; otherwise a short user-facing instructions sentence explaining which photo(s) must be retaken',
+      },
       parameters: {
         type: 'object',
         properties: parameters,
@@ -139,8 +184,8 @@ export function visionSchema(): ResponseSchema {
       },
       observations: { type: 'array', items: { type: 'string' } },
     },
-    required: ['parameters', 'annotations', 'observations'],
-    propertyOrdering: ['parameters', 'annotations', 'observations'],
+    required: ['frameChecks', 'isValidOralScan', 'rejectionReason', 'parameters', 'annotations', 'observations'],
+    propertyOrdering: ['frameChecks', 'isValidOralScan', 'rejectionReason', 'parameters', 'annotations', 'observations'],
   }
 }
 

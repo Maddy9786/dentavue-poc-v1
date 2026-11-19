@@ -127,7 +127,7 @@ const envSchema = z.object({
   // the banded result on real intraoral photos. Raise to HIGH if fine enamel
   // detail turns out to matter; drop to LOW to halve it again.
   GEMINI_MEDIA_RESOLUTION: blankAsAbsent(
-    z.enum(['LOW', 'MEDIUM', 'HIGH']).default('MEDIUM'),
+    z.enum(['LOW', 'MEDIUM', 'HIGH']).default('HIGH'),
   ),
 
   // Hard ceiling per model call. Without one, a hung socket pins an analysis in

@@ -40,7 +40,7 @@ import {
  */
 
 /** Bump on ANY change to weights, bands, margins or the score formula. */
-export const RUBRIC_VERSION = '1.1.0'
+export const RUBRIC_VERSION = '1.2.0'
 
 /**
  * Weights sum to 100, so the score formula needs no normalisation and a weight
@@ -201,21 +201,53 @@ export function bandWithHysteresis(severity: number, previous: Band | null): Ban
 // ---------------------------------------------------------------------------
 
 /**
+ * Within-band fine penalty interpolation, anchored to the hysteresis-stabilised band.
+ *
+ * When raw `ScoredParameter[]` are provided, a severity at the bottom of a band
+ * (e.g. mild = 15) costs slightly less than the band midpoint, and a severity at
+ * the top of the band (e.g. mild = 39) costs slightly more (±6 points around the
+ * band's anchor value, or 0..6 within `none`). This gives input-true precision
+ * across different mouths while keeping the hysteresis band as the primary anchor.
+ */
+function interpolatedBandPenalty(band: Band, severity?: number): number {
+  const entry = BANDS.find((b) => b.band === band)
+  if (!entry) return 0
+  if (severity === undefined) return entry.value
+
+  const clamped = clamp(severity, entry.min, entry.max)
+  const span = Math.max(1, entry.max - entry.min)
+  const ratio = (clamped - entry.min) / span // 0.0 at band floor → 1.0 at band ceiling
+
+  if (band === 'none') {
+    // 0–4 severity stays a clean 0 penalty (score 100); 5–14 adds up to 5 penalty points.
+    return clamped <= 4 ? 0 : ratio * 5
+  }
+  // ±6 points around the band's anchor value (e.g. mild 25 → 19..31).
+  return clamp(entry.value + (ratio - 0.5) * 12, 0, 95)
+}
+
+/**
  * The score: 100 minus each parameter's weighted band penalty.
  *
- *   score = round( 100 - Σ( weight_i × bandValue_i / 100 ) )
+ *   score = round( 100 - Σ( weight_i × penalty_i / 100 ) )
  *
  * Rounded ONCE, at the end. Rounding per-parameter first would let half-point
  * errors accumulate across six terms and make the result depend on evaluation
  * order — the sort of thing that produces an off-by-one nobody can reproduce.
  *
- * Reference points: a clean mouth scores 100, all-mild 75, all-moderate 45,
- * all-marked 15.
+ * Reference points (band-only): a clean mouth scores 100, all-mild 75,
+ * all-moderate 45, all-marked 15. When `parameters` are supplied, within-band
+ * severity interpolation refines the penalty within each band.
  */
-export function computeScore(bands: Record<ParameterKey, Band>): number {
+export function computeScore(
+  bands: Record<ParameterKey, Band>,
+  parameters?: ScoredParameter[],
+): number {
   let penalty = 0
   for (const parameter of PARAMETERS) {
-    penalty += (PARAMETER_WEIGHTS[parameter] * bandValue(bands[parameter])) / 100
+    const scored = parameters?.find((p) => p.parameter === parameter)
+    const unitPenalty = interpolatedBandPenalty(bands[parameter], scored?.severity)
+    penalty += (PARAMETER_WEIGHTS[parameter] * unitPenalty) / 100
   }
   return clamp(Math.round(100 - penalty), 0, 100)
 }

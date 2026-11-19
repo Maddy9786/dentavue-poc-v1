@@ -54,8 +54,20 @@ export interface Annotation {
   label: string
 }
 
+/** Per-frame anatomical verification returned by Pass 1 before scoring. */
+export interface FrameCheck {
+  position: number
+  isOralCavityVisible: boolean
+  /** 0.0-1.0 clarity of the teeth/gums/tongue in this specific frame. */
+  clarity: number
+  note: string
+}
+
 /** Pass 1's complete output — the only thing the vision model is asked for. */
 export interface VisionResult {
+  isValidOralScan?: boolean
+  rejectionReason?: string
+  frameChecks?: FrameCheck[]
   parameters: Record<ParameterKey, ParameterObservation>
   annotations: Annotation[]
   /** Short factual visual notes. No numbers, no diagnosis. Feeds pass 2. */

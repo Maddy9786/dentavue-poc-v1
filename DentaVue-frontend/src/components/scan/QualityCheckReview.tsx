@@ -15,7 +15,7 @@ export interface QualityCheckItem {
   /** data: URL of the captured shot. */
   image: string
   status: ScanQualityStatus
-  /** Reason shown on the badge when flagged (e.g. "Too Dark"). */
+  /** Reason shown on the badge when flagged (e.g. "Too dark", "Blurry", "No mouth detected"). */
   flag?: string
 }
 
@@ -23,20 +23,7 @@ export interface QualityCheckItem {
  * "Quality check" — the review screen after the four shots, before analysis.
  *
  * Each captured angle shows with a clarity badge: a green check (success-small)
- * when sharp, an amber reason pill when flagged. The clarity is REAL — computed
- * per shot on the capture canvas by `assessImageQuality` (darkness + blur), not a
- * placeholder. "Mouth too far / not in frame" is beyond client-side CV and falls
- * to the AI layer.
- *
- * Actions: "Retake N photo(s)" jumps straight to the first flagged shot; "Analyse
- * anyway" proceeds regardless. When nothing is flagged, a single "Analyse" CTA
- * shows. All copy is derived from the item statuses.
- *
- * The amber problem-marker uses `success-bg` for BOTH its background and text
- * (same colour, by request) — a solid amber pill; its label is a placeholder the
- * AI clarity layer will supply per image. The token's NAME is a known Figma
- * mislabel (it is the brown/amber #A05A00, not a success colour; see CLAUDE.md),
- * but its hex is exactly the design's "Too Dark" colour.
+ * when sharp and oral tissue is detected, or an amber reason pill when flagged.
  */
 export function QualityCheckReview({
   items,
@@ -53,16 +40,27 @@ export function QualityCheckReview({
   onAnalyse: () => void
 }) {
   const flaggedIndex = items.findIndex((item) => item.status === 'retake')
-  const flaggedCount = items.filter((item) => item.status === 'retake').length
+  const flaggedItems = items.filter((item) => item.status === 'retake')
+  const flaggedCount = flaggedItems.length
+  const noMouthCount = flaggedItems.filter((item) => item.flag === 'No mouth detected').length
   const goodCount = items.length - flaggedCount
+  const allInvalidOral = noMouthCount === items.length
 
-  const summaryTitle = `${goodCount} of ${items.length} look great`
+  const summaryTitle =
+    goodCount === 0
+      ? 'Retake needed before analysis'
+      : `${goodCount} of ${items.length} look great`
+
   const summaryNote =
     flaggedCount === 0
-      ? 'All your photos look sharp. You’re good to go.'
-      : flaggedCount === 1
-        ? 'One photo is a little dark. Retake it for the best analysis.'
-        : `${flaggedCount} photos need another look. Retake them for the best analysis.`
+      ? 'All 4 mouth angles look clear and properly aligned. You’re ready for analysis.'
+      : allInvalidOral
+        ? 'We couldn’t detect a close-up of your teeth or gums in these photos. Please align your mouth inside the dashed guide and retake.'
+        : noMouthCount > 0
+          ? `${noMouthCount} photo${noMouthCount > 1 ? 's' : ''} didn’t clearly show your mouth inside the guide frame. Retake ${flaggedCount > 1 ? 'flagged photos' : 'it'} for accurate results.`
+          : flaggedCount === 1
+            ? `One photo looks ${flaggedItems[0]?.flag?.toLowerCase() ?? 'unclear'}. Retake it for the most accurate analysis.`
+            : `${flaggedCount} photos need another look (${flaggedItems.map((f) => f.flag).filter(Boolean).join(', ')}). Retake them for the best analysis.`
 
   return (
     <main className="flex min-h-dvh flex-col bg-background">
@@ -77,43 +75,49 @@ export function QualityCheckReview({
           </span>
         </header>
 
-        {/* Success summary. success-big renders white-on-green on the white card
-            (its check is knocked out, showing the card through). */}
+        {/* Summary card */}
         <Card className="flex flex-col items-center gap-sm text-center">
           <SuccessBigIcon aria-hidden="true" className="size-16" />
           <h2 className="text-h1 font-semibold text-foreground">{summaryTitle}</h2>
           <p className="text-body text-foreground-secondary">{summaryNote}</p>
         </Card>
 
-        {/* The four captured angles. */}
+        {/* The four captured angles — clicking any card lets the user retake that specific angle */}
         <ul className="grid grid-cols-2 gap-md">
-          {items.map((item) => {
+          {items.map((item, idx) => {
             const flagged = item.status === 'retake'
             return (
               <li key={item.key} className="flex flex-col gap-xs">
-                <div className="relative aspect-[4/3] overflow-hidden rounded-3 bg-border">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the capture canvas, not a remote asset. */}
+                <button
+                  type="button"
+                  onClick={() => onRetake(idx)}
+                  aria-label={`Retake ${item.label} photo`}
+                  className={cn(
+                    'group relative aspect-[4/3] overflow-hidden rounded-3 bg-border text-left transition-all',
+                    flagged ? 'ring-2 ring-success-bg' : 'hover:ring-2 hover:ring-primary',
+                  )}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- a data: URL from the capture canvas */}
                   <img
                     src={item.image}
                     alt={`Your ${item.label.toLowerCase()} photo`}
                     className="h-full w-full object-cover"
                   />
                   {flagged ? (
-                    // Same colour for background and text — a solid amber
-                    // problem-marker; the label ("Too Dark") is a placeholder the
-                    // AI clarity layer will fill in (any/some/all images), kept
-                    // here for reference.
-                    <span className="absolute left-sm top-sm rounded-2 bg-success-bg px-sm py-2xs text-nav font-semibold text-success-bg">
-                      {item.flag}
+                    <span className="absolute left-sm top-sm rounded-2 bg-success-bg px-sm py-2xs text-nav font-semibold text-surface shadow-sm">
+                      ⚠️ {item.flag ?? 'Retake'}
                     </span>
                   ) : (
                     <SuccessSmallIcon aria-hidden="true" className="absolute left-sm top-sm size-6" />
                   )}
-                </div>
+                  <span className="absolute bottom-xs right-xs rounded bg-foreground/75 px-xs py-2xs text-nav text-surface opacity-90 group-hover:opacity-100">
+                    Tap to retake
+                  </span>
+                </button>
                 <span className="text-body text-foreground">
                   {item.label} ·{' '}
-                  <span className={cn(flagged ? 'font-medium text-success-bg' : 'text-foreground-secondary')}>
-                    {flagged ? 'retake' : 'sharp'}
+                  <span className={cn(flagged ? 'font-semibold text-success-bg' : 'text-foreground-secondary')}>
+                    {flagged ? item.flag ?? 'retake' : 'clear & aligned'}
                   </span>
                 </span>
               </li>
@@ -125,22 +129,22 @@ export function QualityCheckReview({
         <div className="mt-auto flex flex-col gap-sm pt-lg">
           {flaggedCount > 0 ? (
             <>
-              {/* White label per the client's blue/white combination (below AA on
-                  the fill; kept per client instruction, pending confirmation). */}
               <Button variant="primary" className="text-surface" onClick={() => onRetake(flaggedIndex)}>
-                Retake {flaggedCount} photo{flaggedCount > 1 ? 's' : ''}
+                Retake {flaggedCount} flagged photo{flaggedCount > 1 ? 's' : ''}
               </Button>
-              <Button
-                variant="surface"
-                className="border border-border text-foreground-secondary shadow-none"
-                onClick={onAnalyse}
-              >
-                Analyse anyway
-              </Button>
+              {!allInvalidOral && (
+                <Button
+                  variant="surface"
+                  className="border border-border text-foreground-secondary shadow-none"
+                  onClick={onAnalyse}
+                >
+                  Analyse anyway ({goodCount} clear photo{goodCount === 1 ? '' : 's'})
+                </Button>
+              )}
             </>
           ) : (
             <Button variant="primary" className="text-surface" onClick={onAnalyse}>
-              Analyse
+              Analyse Scan
             </Button>
           )}
         </div>

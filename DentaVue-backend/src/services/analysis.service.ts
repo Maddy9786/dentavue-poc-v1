@@ -70,13 +70,14 @@ const VISION_MAX_TOKENS = 2_048
 const NARRATIVE_MAX_TOKENS = 1_536
 
 /**
- * A small reasoning budget measurably helps pass 1 weigh evidence across four
- * frames. Pass 2 is a formatting job, so it asks for none.
+ * A reasoning budget measurably helps pass 1 weigh evidence across four
+ * frames and verify each angle's oral cavity visibility. Pass 2 is a formatting
+ * job, so it asks for none.
  *
  * "None" means the field is OMITTED, not sent as 0 — Gemini 3.x rejects a zero
  * budget with a bare 400 (those models always reason). See gemini.ts.
  */
-const VISION_THINKING_BUDGET = 512
+const VISION_THINKING_BUDGET = 1024
 const NARRATIVE_THINKING_BUDGET = 0
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -170,20 +171,39 @@ export async function runAnalysis(userId: string, scanId: string): Promise<void>
     })
     assertUsableVision(vision.data)
 
-    // --- Scoring: the backend decides --------------------------------------
+    // --- Oral cavity verification & Scoring: the backend decides -----------
+    const frameChecks = vision.data.frameChecks ?? []
+    const visibleOralFrames = frameChecks.filter((f) => f.isOralCavityVisible).length
+    const hasFrameChecks = frameChecks.length > 0
+
+    // Compute real capture quality from per-frame oral visibility & clarity when present.
+    const measuredCaptureQuality = hasFrameChecks
+      ? frameChecks.reduce((sum, f) => sum + (f.isOralCavityVisible ? f.clarity : 0), 0) /
+        frameChecks.length
+      : 1
+
     const previous = await analysisModel.findPreviousReady(userId, scan.capturedAt)
     const scored = scoreParameters(vision.data, previous?.bands ?? {})
     const bands = bandMap(scored)
-    const score = computeScore(bands)
-    const confidence = computeConfidence(vision.data.parameters)
+    const score = computeScore(bands, scored)
+    const confidence = computeConfidence(vision.data.parameters, measuredCaptureQuality)
 
-    // The model saw essentially nothing — a distant selfie, no teeth in frame.
-    // Persisting this would show a fabricated "100 / all healthy" on every
-    // screen; instead fail the analysis with an actionable message so the app
-    // asks for a better capture. Nothing is written to scan_parameters/score.
-    if (!isReadable(confidence)) {
-      logger.info({ scanId, confidence }, 'Scan unreadable — asking for a retake')
-      await analysisModel.markFailed(scanId, UNREADABLE_MESSAGE)
+    // Reject if the model explicitly flagged non-oral photos, saw zero valid
+    // oral frames, or confidence fell below the usable floor.
+    if (
+      vision.data.isValidOralScan === false ||
+      (hasFrameChecks && visibleOralFrames === 0) ||
+      !isReadable(confidence)
+    ) {
+      const reason =
+        vision.data.rejectionReason && vision.data.rejectionReason.trim().length > 10
+          ? vision.data.rejectionReason.trim()
+          : UNREADABLE_MESSAGE
+      logger.info(
+        { scanId, confidence, isValidOralScan: vision.data.isValidOralScan, visibleOralFrames },
+        'Scan rejected as unreadable or non-oral — asking for a retake',
+      )
+      await analysisModel.markFailed(scanId, reason)
       return
     }
 
@@ -326,7 +346,7 @@ export async function getAnalysis(userId: string, scanId: string): Promise<Analy
 
   const previous = await analysisModel.findPreviousReady(userId, scan.capturedAt)
   const bands: Record<ParameterKey, Band> = bandMap(record.parameters)
-  const score = record.score ?? computeScore(bands)
+  const score = record.score ?? computeScore(bands, record.parameters)
   const delta = scoreDelta(score, previous?.score ?? null, record.provisional)
 
   return {
