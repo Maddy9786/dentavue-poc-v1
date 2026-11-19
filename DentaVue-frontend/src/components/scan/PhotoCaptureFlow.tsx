@@ -57,28 +57,25 @@ const POSE_INSTRUCTIONS: Record<string, PoseInstruction> = {
   },
 }
 
-/** Real Photographic Sample Pose Card showing an actual photo example for each step. */
+/** Compact Real Photographic Sample Pose Card that fits cleanly above the camera without pushing controls down. */
 function PosePhotoCard({ stepId }: { stepId: string }) {
   const info = POSE_INSTRUCTIONS[stepId] ?? POSE_INSTRUCTIONS['front-teeth']!
 
   return (
-    <div className="flex items-center gap-md rounded-3 border border-border bg-surface p-sm shadow-drop">
-      <div className="relative h-16 w-24 shrink-0 overflow-hidden rounded-2 border border-border bg-border">
+    <div className="flex items-center gap-sm rounded-3 border border-border bg-surface px-sm py-xs shadow-drop">
+      <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-2 border border-border bg-border">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={info.imageSrc}
           alt={info.title}
           className="h-full w-full object-cover"
         />
-        <span className="absolute bottom-0 left-0 right-0 bg-foreground/70 py-0.5 text-center text-[10px] font-semibold text-surface">
-          Match Pose
-        </span>
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-2xs">
-        <span className="text-body font-semibold text-foreground">{info.title}</span>
-        <span className="text-nav text-foreground-secondary">{info.step1}</span>
-        <span className="text-nav text-foreground-secondary">{info.step2}</span>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="text-nav font-semibold text-foreground">{info.title}</span>
+        <span className="truncate text-nav text-foreground-secondary">{info.step1}</span>
+        <span className="truncate text-nav text-foreground-secondary">{info.step2}</span>
       </div>
     </div>
   )
@@ -373,61 +370,42 @@ export function PhotoCaptureFlow() {
 
   return (
     <>
-      <main className={cn('flex min-h-dvh flex-col bg-background', phase === 'review' && 'hidden')}>
-        <div className="mx-auto flex w-full app-column flex-1 flex-col gap-md px-lg pt-2xl pb-2xl">
-          <header className="relative flex h-9 items-center justify-center">
+      <main className={cn('flex h-dvh overflow-hidden flex-col bg-background', phase === 'review' && 'hidden')}>
+        <div className="mx-auto flex h-full w-full app-column flex-col gap-sm px-lg pt-lg pb-lg">
+          <header className="relative flex h-8 shrink-0 items-center justify-center">
             <div className="absolute left-0">
               <BackButton fallbackHref={ROUTES.patient.guidedScan} />
             </div>
             <h1 className="text-h1 font-semibold text-foreground">Guided Scan</h1>
           </header>
 
-          {/* 4-Slot Interactive Step Strip */}
-          <div className="grid grid-cols-4 gap-xs">
-            {steps.map((s, i) => {
-              const img = captures[i]
-              const isCurrent = i === step
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  disabled={shutterLocked}
-                  onClick={() => setStep(i)}
-                  className={cn(
-                    'flex flex-col items-center gap-2xs rounded-2 border p-2xs text-center transition-all',
-                    isCurrent
-                      ? 'border-primary bg-surface shadow-drop'
-                      : img
-                        ? 'border-secondary/60 bg-surface/60'
-                        : 'border-border bg-surface/40 opacity-70',
-                  )}
-                >
-                  <div className="relative h-8 w-full overflow-hidden rounded-1 bg-border">
-                    {img ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={img} alt={s.label} className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="flex h-full items-center justify-center text-nav font-semibold text-foreground-secondary">
-                        {i + 1}
-                      </span>
-                    )}
-                  </div>
-                  <span
-                    className={cn(
-                      'truncate w-full text-nav',
-                      isCurrent ? 'font-semibold text-primary' : 'text-foreground-secondary',
-                    )}
-                  >
-                    {s.label}
-                  </span>
-                </button>
-              )
-            })}
+          {/* Compact progress bar — clickable segments */}
+          <div
+            role="progressbar"
+            aria-valuemin={1}
+            aria-valuemax={total}
+            aria-valuenow={step + 1}
+            aria-label="Scan progress"
+            className="flex shrink-0 gap-xs"
+          >
+            {steps.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                disabled={shutterLocked}
+                onClick={() => setStep(i)}
+                aria-label={`Go to Step ${i + 1}: ${s.label}`}
+                className={cn(
+                  'h-2 flex-1 rounded-full transition-colors',
+                  i === step ? 'bg-primary' : captures[i] ? 'bg-secondary' : 'bg-border',
+                )}
+              />
+            ))}
           </div>
 
           {/* Step chip + Zoom selector */}
-          <div aria-live="polite" className="flex items-center justify-between">
-            <span className="inline-flex items-center gap-xs rounded-full bg-surface px-md py-xs text-h2 font-medium shadow-drop">
+          <div aria-live="polite" className="flex shrink-0 items-center justify-between">
+            <span className="inline-flex items-center gap-xs rounded-full bg-surface px-md py-2xs text-body font-medium shadow-drop">
               <span className="text-primary">Step {step + 1}</span>
               <span className="text-foreground">· {current.label}</span>
             </span>
@@ -449,11 +427,13 @@ export function PhotoCaptureFlow() {
             </div>
           </div>
 
-          {/* Real Photographic Sample Pose Card */}
-          <PosePhotoCard stepId={current.id} />
+          {/* Compact Real Photographic Sample Pose Card */}
+          <div className="shrink-0">
+            <PosePhotoCard stepId={current.id} />
+          </div>
 
-          {/* Clean Camera Preview */}
-          <div className="relative aspect-[3/4] w-full overflow-hidden rounded-4 bg-foreground md:aspect-[3/2]">
+          {/* Clean Camera Preview — flex-1 min-h-0 so it ALWAYS fits the screen and never pushes the shutter button down */}
+          <div className="relative min-h-0 flex-1 w-full overflow-hidden rounded-4 bg-foreground">
             <video
               ref={videoRef}
               playsInline
@@ -505,8 +485,8 @@ export function PhotoCaptureFlow() {
             </p>
           )}
 
-          {/* Controls — gallery (left) + shutter (centre) + flip camera (right) */}
-          <div className="relative mt-auto flex items-center justify-center pt-sm">
+          {/* Controls — gallery (left) + shutter (centre) + flip camera (right), permanently pinned in viewport */}
+          <div className="relative flex shrink-0 items-center justify-center pt-xs">
             <button
               type="button"
               aria-label="Choose a photo from your library"
