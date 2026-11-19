@@ -22,7 +22,10 @@ ssh -i Terraform/environment/dev/id_rsa_dentavue.pem azureuser@4.234.144.53 "cd 
 
 DentaVue is a full-stack AI-assisted dental screening and guided intraoral scan web platform. This document serves as the **complete technical reference for both the Application Stack (Frontend, Backend, Docker, Nginx) and the Cloud Infrastructure (Azure + Terraform IaC)**.
 
-> 💡 **Looking for a Non-Technical Product & Feature Overview?** See **[FUNCTIONALITY.md](./FUNCTIONALITY.md)** for a plain-English guide to what the app does and how users interact with it.
+> 💡 **Looking for Product, Strategic Roadmap, or Microservices Documentation?**
+> - **[FUNCTIONALITY.md](./FUNCTIONALITY.md)** — Plain-English guide to what the app does and how users interact with it.
+> - **[docs/ROADMAP_AND_TRACKER.md](./docs/ROADMAP_AND_TRACKER.md)** — Master Phase-by-Phase Execution Roadmap, Current Status (`TRL 4`), 7-Model AI Tracker & KPI Checklist (mapped to `DentaVuefinal3.pdf`).
+> - **[docs/MICROSERVICES_ARCHITECTURE.md](./docs/MICROSERVICES_ARCHITECTURE.md)** — Complete Backend Service Inventory & Monolith-to-Microservices Conversion Tracker (`MS-1` to `MS-8`).
 
 ---
 
