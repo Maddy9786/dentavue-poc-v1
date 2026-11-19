@@ -343,10 +343,14 @@ export function PhotoCaptureFlow() {
     (current.id === 'upper-gums' || current.id === 'lower-gums') && Boolean(captures[0])
 
   // Auto-adjust zoom when step changes: 2.0x for Step 1 (Front Teeth), 1.5x for Steps 2, 3, 4 (wider view when tilting!)
+  // Also auto-enable Screen Light Ring on inner-mouth steps (Upper Gums, Tongue, Lower Gums) for better indoor visibility
   useEffect(() => {
     setZoomLevel(guidance.recommendedZoom)
     setRejectedAttempt(null)
-  }, [step, guidance.recommendedZoom])
+    if (step > 0 && guidedMode === 'v2') {
+      setScreenLightOn(true)
+    }
+  }, [step, guidance.recommendedZoom, guidedMode])
 
   // Request high-resolution 1920x1440 stream
   useEffect(() => {
@@ -1018,6 +1022,17 @@ export function PhotoCaptureFlow() {
             <p role="alert" className="text-body text-foreground-secondary">
               {error}
             </p>
+          )}
+
+          {/* Prominent Mobile Action Bar for Steps 2 (Upper Gums) & 4 (Lower Gums) */}
+          {guidedMode === 'v2' && canAutoExtractGum && (
+            <button
+              type="button"
+              onClick={() => void handleAutoExtractFromSmile()}
+              className="flex w-full items-center justify-center gap-xs rounded-3 bg-secondary py-sm px-md text-body font-semibold text-surface shadow-drop transition-transform active:scale-98"
+            >
+              <span>✨ Skip Camera &amp; Auto-Use {current.label} from Step 1 Smile →</span>
+            </button>
           )}
 
           {/* Controls — gallery (left) + manual shutter (centre) + flip camera (right) */}
