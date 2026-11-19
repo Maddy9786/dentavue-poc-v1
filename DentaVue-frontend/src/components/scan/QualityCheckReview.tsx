@@ -42,7 +42,9 @@ export function QualityCheckReview({
   const flaggedIndex = items.findIndex((item) => item.status === 'retake')
   const flaggedItems = items.filter((item) => item.status === 'retake')
   const flaggedCount = flaggedItems.length
-  const noMouthCount = flaggedItems.filter((item) => item.flag === 'No mouth detected').length
+  const noMouthCount = flaggedItems.filter((item) =>
+    item.flag?.toLowerCase().includes('no '),
+  ).length
   const goodCount = items.length - flaggedCount
   const allInvalidOral = noMouthCount === items.length
 

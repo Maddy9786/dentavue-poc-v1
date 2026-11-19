@@ -2,16 +2,13 @@
  * Client-side capture-quality & oral-presence check — real image processing.
  *
  * Runs on the canvas the camera already produces, so it is free, instant, works
- * offline, and rejects a bad or non-dental shot BEFORE upload, while the user is
- * still holding their phone.
+ * offline, and rejects a bad or non-dental shot BEFORE upload.
  *
- * Three checks, all fast:
- *   1. "Too dark"          → mean luminance below a floor
- *   2. "Blurry"            → Laplacian variance of the CENTRE region below a floor
- *   3. "No mouth detected" → Oral chromaticity check inside the central target box
- *                            (verifies presence of warm pink/red lip/gum/tongue
- *                            mucosa tones and tooth-enamel luminance so photos of
- *                            desks, walls, screens, or random objects are flagged).
+ * Distinguishes an ACTUAL close-up of teeth/gums/tongue from plain facial skin
+ * (cheeks, forehead, closed mouth) or random background objects by requiring:
+ *   1. Deep vascular red/pink mucosa (lips, gingiva, tongue: Cr >= 152, R - G >= 24)
+ *   2. Dental/oral contrast inside the target arch (bright tooth enamel pixels
+ *      AND/OR dark inner-oral-cavity pixels adjacent to mucosa).
  */
 
 export type ScanQualityStatus = 'sharp' | 'retake'
@@ -39,17 +36,9 @@ export interface ImageQuality {
 const SAMPLE_WIDTH = 400
 const LIVE_SAMPLE_WIDTH = 160
 
-// Mean luminance (0–255) below this reads as too dark to analyse.
 const DARK_LUMINANCE = 30
-
-// Center-region Laplacian variance below this reads as blurred/soft.
 const BLUR_VARIANCE = 135
-
-// Minimum fraction of the central target region that must exhibit oral/lip/gum/tongue
-// warm chromaticity. Random rooms, desks, laptops, walls, or ceilings sit at 0.00–0.03;
-// a real close-up mouth/tongue/gum shot sits at 0.14–0.65.
-const MIN_ORAL_MUCOSA_RATIO = 0.065
-
+const MIN_ORAL_SCORE = 0.08
 const CENTER_FRACTION = 0.55
 
 /** Draws a data URL to a normalised-width canvas and returns its pixels. */
@@ -116,19 +105,29 @@ function centerLaplacianVariance(gray: Float32Array, width: number, height: numb
   return variance
 }
 
+interface OralSignatureMetrics {
+  score: number
+  deepMucosaRatio: number
+  enamelRatio: number
+  skinOnly: boolean
+}
+
 /**
- * Measures the fraction of pixels in the central target zone that match
- * oral tissue (lips, gums, tongue mucosa) + dental contrast.
+ * Distinguishes an OPEN MOUTH / TEETH / GUMS / TONGUE from ordinary facial skin
+ * or background objects inside the central target region.
  *
- * Why this works reliably for non-technical users:
- * - A real intraoral photo always has pink/red vascular tissue (lips, gingiva,
- *   tongue, oral mucosa) where Red strictly leads Green and Blue with warm
- *   YCrCb red-difference chrominance (Cr > 138), alongside brighter enamel or
- *   darker oral cavity shadows.
- * - Neutral/cool objects (walls, desks, keyboards, paper, outdoor scenes, blank
- *   ceilings) lack concentrated central oral-mucosa chrominance + oral contrast.
+ * Ordinary facial skin has mild red chrominance (Cr 136–149, R - G ~ 12–22) and
+ * uniform luminance.
+ * Actual lips, gums, and tongue mucosa have much stronger vascular redness
+ * (Cr >= 151, R - G >= 25), AND a smile/open mouth simultaneously contains bright
+ * low-saturation tooth enamel pixels (R,G,B > 135, low chroma spread) or deep
+ * intraoral cavity contrast.
  */
-function centerOralTissueRatio(data: Uint8ClampedArray, width: number, height: number): number {
+function analyzeOralSignature(
+  data: Uint8ClampedArray,
+  width: number,
+  height: number,
+): OralSignatureMetrics {
   const marginX = Math.floor((width * (1 - CENTER_FRACTION)) / 2)
   const marginY = Math.floor((height * (1 - CENTER_FRACTION)) / 2)
   const x0 = Math.max(0, marginX)
@@ -137,8 +136,10 @@ function centerOralTissueRatio(data: Uint8ClampedArray, width: number, height: n
   const y1 = Math.min(height, height - marginY)
 
   let totalPixels = 0
-  let mucosaPixels = 0
-  let enamelOrHighlightPixels = 0
+  let deepMucosaPixels = 0
+  let mildSkinPixels = 0
+  let enamelPixels = 0
+  let darkCavityPixels = 0
 
   for (let y = y0; y < y1; y += 1) {
     for (let x = x0; x < x1; x += 1) {
@@ -148,54 +149,92 @@ function centerOralTissueRatio(data: Uint8ClampedArray, width: number, height: n
       const b = data[idx + 2]!
       totalPixels += 1
 
-      // Convert RGB to YCrCb red/blue chrominance components
+      const luma = 0.299 * r + 0.587 * g + 0.114 * b
       const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b
       const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b
 
-      // Oral mucosa / gingival / lip / tongue chromatic signature:
-      // Red channel dominates Green & Blue, warm Cr, moderate Cb
-      const isOralPinkOrRed =
-        r > 60 &&
-        r > g + 14 &&
-        r > b + 14 &&
-        g < r * 0.88 &&
-        cr >= 137 &&
-        cr <= 195 &&
-        cb >= 75 &&
-        cb <= 132
+      // 1. Deep vascular pink/red (gums, tongue, inner lips) — strictly redder than facial skin
+      const isDeepMucosa =
+        r > 75 &&
+        r - g >= 25 &&
+        r - b >= 22 &&
+        g < r * 0.82 &&
+        cr >= 151 &&
+        cr <= 205 &&
+        cb >= 80 &&
+        cb <= 130
 
-      // Enamel / tooth surface signature (bright ivory/white pixels)
+      // 2. Ordinary facial skin (cheeks, forehead, chin)
+      const isMildSkin =
+        !isDeepMucosa &&
+        r > 70 &&
+        r > g + 10 &&
+        r > b + 12 &&
+        cr >= 136 &&
+        cr < 151 &&
+        cb >= 78 &&
+        cb <= 128
+
+      // 3. Bright tooth enamel (ivory/white, high luminance, low saturation)
       const maxC = Math.max(r, g, b)
       const minC = Math.min(r, g, b)
-      const isEnamelLike = r > 125 && g > 115 && b > 100 && maxC - minC < 70
+      const saturation = maxC === 0 ? 0 : (maxC - minC) / maxC
+      const isEnamel = luma >= 140 && r >= 135 && g >= 130 && b >= 115 && saturation <= 0.26
 
-      if (isOralPinkOrRed) mucosaPixels += 1
-      else if (isEnamelLike) enamelOrHighlightPixels += 1
+      // 4. Dark inner mouth cavity shadow
+      const isDarkCavity = luma < 42
+
+      if (isDeepMucosa) deepMucosaPixels += 1
+      else if (isMildSkin) mildSkinPixels += 1
+      else if (isEnamel) enamelPixels += 1
+      else if (isDarkCavity) darkCavityPixels += 1
     }
   }
 
-  if (totalPixels === 0) return 0
-  const mucosaRatio = mucosaPixels / totalPixels
-  const enamelRatio = enamelOrHighlightPixels / totalPixels
+  if (totalPixels === 0) {
+    return { score: 0, deepMucosaRatio: 0, enamelRatio: 0, skinOnly: false }
+  }
 
-  // Require real pink/red oral tissue in the target box; enamel boosts the score
-  // only when at least some surrounding lip/gum tissue is present.
-  if (mucosaRatio < 0.03) return mucosaRatio
-  return Math.min(1, mucosaRatio + Math.min(0.15, enamelRatio * 0.4))
+  const deepMucosaRatio = deepMucosaPixels / totalPixels
+  const mildSkinRatio = mildSkinPixels / totalPixels
+  const enamelRatio = enamelPixels / totalPixels
+  const darkCavityRatio = darkCavityPixels / totalPixels
+
+  // If the frame is mostly normal facial skin with almost no deep gum/tongue red
+  // and almost no tooth enamel, it's a closed face / cheek / forehead — NOT an open mouth scan!
+  const skinOnly = mildSkinRatio > 0.25 && deepMucosaRatio < 0.055 && enamelRatio < 0.04
+
+  if (deepMucosaRatio < 0.035) {
+    return { score: deepMucosaRatio, deepMucosaRatio, enamelRatio, skinOnly }
+  }
+
+  // Score rewards combination of vascular gum/lip/tongue tissue + bright tooth enamel / oral cavity
+  const score = Math.min(
+    1,
+    deepMucosaRatio * 1.2 + Math.min(0.25, enamelRatio * 1.1) + Math.min(0.08, darkCavityRatio * 0.5),
+  )
+
+  return { score, deepMucosaRatio, enamelRatio, skinOnly }
 }
 
 /** The verdict, from pixels. Darkness → No Mouth → Blur priority. */
-function verdict(luminance: number, sharpness: number, oralRatio: number): ImageQuality {
+function verdict(luminance: number, sharpness: number, oral: OralSignatureMetrics): ImageQuality {
   if (luminance < DARK_LUMINANCE) {
-    return { status: 'retake', flag: 'Too dark', luminance, sharpness, oralRatio }
+    return { status: 'retake', flag: 'Too dark', luminance, sharpness, oralRatio: oral.score }
   }
-  if (oralRatio < MIN_ORAL_MUCOSA_RATIO) {
-    return { status: 'retake', flag: 'No mouth detected', luminance, sharpness, oralRatio }
+  if (oral.skinOnly || oral.score < MIN_ORAL_SCORE) {
+    return {
+      status: 'retake',
+      flag: 'No teeth/mouth visible',
+      luminance,
+      sharpness,
+      oralRatio: oral.score,
+    }
   }
   if (sharpness < BLUR_VARIANCE) {
-    return { status: 'retake', flag: 'Blurry', luminance, sharpness, oralRatio }
+    return { status: 'retake', flag: 'Blurry', luminance, sharpness, oralRatio: oral.score }
   }
-  return { status: 'sharp', luminance, sharpness, oralRatio }
+  return { status: 'sharp', luminance, sharpness, oralRatio: oral.score }
 }
 
 /**
@@ -207,7 +246,7 @@ export async function assessImageQuality(dataUrl: string): Promise<ImageQuality>
   const gray = toGrayscale(imageData.data)
   const lum = meanLuminance(gray)
   const sharp = centerLaplacianVariance(gray, imageData.width, imageData.height)
-  const oral = centerOralTissueRatio(imageData.data, imageData.width, imageData.height)
+  const oral = analyzeOralSignature(imageData.data, imageData.width, imageData.height)
   return verdict(lum, sharp, oral)
 }
 
@@ -215,9 +254,6 @@ export async function assessImageQuality(dataUrl: string): Promise<ImageQuality>
  * Ultra-fast synchronous live video frame analyser (~1.5ms at 160px width).
  * Powers the live Red / Amber / Green traffic-light guide ring on the camera
  * viewfinder so non-technical users know immediately when to press the shutter.
- *
- * `cropZoom` (1.0–3.0) crops the center of the video stream to match the exact
- * zoomed-in region currently displayed in the viewfinder.
  */
 export function assessLiveVideoFrame(
   video: HTMLVideoElement,
@@ -245,41 +281,49 @@ export function assessLiveVideoFrame(
   const gray = toGrayscale(imageData.data)
   const luminance = meanLuminance(gray)
   const sharpness = centerLaplacianVariance(gray, width, height)
-  const oralRatio = centerOralTissueRatio(imageData.data, width, height)
+  const oral = analyzeOralSignature(imageData.data, width, height)
 
   if (luminance < DARK_LUMINANCE) {
     return {
       state: 'invalid',
-      message: 'Too dark — turn on the 💡 Light or face a window',
+      message: 'Too dark — turn on 💡 Light or face a bright light',
       luminance,
       sharpness,
-      oralRatio,
+      oralRatio: oral.score,
     }
   }
-  if (oralRatio < MIN_ORAL_MUCOSA_RATIO) {
-    return {
-      state: 'invalid',
-      message: 'Bring your mouth & teeth close inside the target frame',
-      luminance,
-      sharpness,
-      oralRatio,
-    }
-  }
-  // At 160px sample width, Laplacian variance scales down ~2.2x vs 400px width
-  if (sharpness < 52 || oralRatio < 0.11) {
+  if (oral.skinOnly) {
     return {
       state: 'adjust',
-      message: 'Almost there — move slightly closer & hold steady',
+      message: 'Open mouth / smile wide to show your teeth & gums inside the guide',
       luminance,
       sharpness,
-      oralRatio,
+      oralRatio: oral.score,
+    }
+  }
+  if (oral.score < MIN_ORAL_SCORE) {
+    return {
+      state: 'invalid',
+      message: 'Point camera at your mouth & fill the dashed guide',
+      luminance,
+      sharpness,
+      oralRatio: oral.score,
+    }
+  }
+  if (sharpness < 55 || oral.score < 0.14) {
+    return {
+      state: 'adjust',
+      message: 'Almost there — bring teeth closer & hold steady',
+      luminance,
+      sharpness,
+      oralRatio: oral.score,
     }
   }
   return {
     state: 'ready',
-    message: '✓ Mouth aligned & clear — tap shutter to capture!',
+    message: '✓ Teeth & gums aligned! Tap the shutter button below to capture',
     luminance,
     sharpness,
-    oralRatio,
+    oralRatio: oral.score,
   }
 }
