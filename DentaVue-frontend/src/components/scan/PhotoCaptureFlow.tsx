@@ -8,6 +8,7 @@ import { BackButton } from '@/components/ui/BackButton'
 import { ROUTES } from '@/constants/routes'
 import { photoCaptureSteps } from '@/features/dashboard/mockDashboard'
 import { assessImageQuality, type ImageQuality } from '@/lib/imageQuality'
+import { enhanceIntraoralCanvas, enhanceIntraoralDataUrl } from '@/lib/imageEnhancer'
 import { useUploadScanMutation } from '@/features/scan/scansApi'
 import { scanDraftCaptured, scanDraftUploaded } from '@/features/scan/scanDraftSlice'
 import { useAppDispatch, useAppSelector } from '@/store/hooks'
@@ -340,7 +341,8 @@ export function PhotoCaptureFlow() {
       return
     }
     ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, width, height)
-    void handleCaptured(canvas.toDataURL('image/jpeg', 0.9), targetStep)
+    enhanceIntraoralCanvas(canvas)
+    void handleCaptured(canvas.toDataURL('image/jpeg', 0.92), targetStep)
   }
 
   const pickFromGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -354,7 +356,9 @@ export function PhotoCaptureFlow() {
     const reader = new FileReader()
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        void handleCaptured(reader.result, targetStep)
+        void enhanceIntraoralDataUrl(reader.result, MAX_DIMENSION).then((enhanced) =>
+          handleCaptured(enhanced, targetStep),
+        )
       } else {
         shutterLockedRef.current = false
         setShutterLocked(false)

@@ -77,7 +77,7 @@ const NARRATIVE_MAX_TOKENS = 1_536
  * "None" means the field is OMITTED, not sent as 0 — Gemini 3.x rejects a zero
  * budget with a bare 400 (those models always reason). See gemini.ts.
  */
-const VISION_THINKING_BUDGET = 1024
+const VISION_THINKING_BUDGET = 1536
 const NARRATIVE_THINKING_BUDGET = 0
 
 const MIME_BY_EXT: Record<string, string> = {

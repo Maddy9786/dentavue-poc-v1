@@ -21,17 +21,17 @@ import type { ResponseSchema } from '@/integrations/gemini.js'
 /** What each parameter means, in the model's terms. Order matches PARAMETERS. */
 const PARAMETER_GUIDE: Record<ParameterKey, string> = {
   gumInflammation:
-    'Redness, puffiness or swelling along the gum margins. 0 = uniformly pale pink and flat; 100 = deep red and visibly swollen. Judge by the WORST margin visible in any frame, not the average — one clearly inflamed area is a real finding even if the rest look healthy.',
+    'Gingival erythema & edema along marginal gingiva and interdental papillae (inspect Frames 0, 1, 3). Look for color shift from coral-pink to erythematous red/magenta, rolled or blunted papillary tips, glossy surface (loss of stippling), or spontaneous bleeding points. 0 = uniformly pale coral-pink, firm knife-edge margins; 15-39 = localized mild redness or slight papillary swelling on 1-3 teeth; 40-69 = distinct moderate redness/puffiness across multiple teeth; 70-100 = vivid deep-red/swollen margins. Judge by the WORST margin visible in any frame.',
   plaqueExtent:
-    'Visible soft deposits and biofilm — dull white/yellow film, especially at the gum line. 0 = none visible; 100 = heavy film across most visible surfaces.',
+    'Visible soft microbial biofilm — dull matte white/cream/yellowish accumulation along the cervical third (gumline) and interproximal embrasures (inspect Frames 0, 1, 3). 0 = clean glossy enamel up to the gum margin; 15-39 = thin cervical film or interdental deposits on 1-3 teeth; 40-69 = obvious soft buildup covering >1/3 of cervical crowns on several teeth; 70-100 = heavy thick biofilm across most visible tooth surfaces.',
   gumMarginRecession:
-    'Gum margin position: root exposure, scalloping, margins sitting lower than neighbouring teeth. 0 = margins even and high; 100 = pronounced exposure on several teeth.',
+    'Apical migration of the gingival margin below the cemento-enamel junction (CEJ), root cementum/dentin exposure (yellowish root collar), triangular "black triangles" between teeth, or clefting (inspect Frames 0, 1, 3). 0 = gingival margins full, symmetric and coronal to CEJ; 15-39 = minor 1mm margin drop or early root neck visibility on 1-2 teeth; 40-69 = clear root exposure or asymmetric margin drop on 2+ teeth; 70-100 = pronounced root exposure across multiple teeth.',
   enamelWear:
-    'Edge translucency, chipping, flattened biting edges, a broken or jagged tooth edge, surface dullness. 0 = edges opaque and intact; 100 = a clearly broken/chipped tooth or marked translucency.',
+    'Incisal and occlusal enamel loss: flattened biting edges, incisal chipping/notching, exposed yellowish incisal dentin cores, craze lines, or acid-erosion translucency/thinning (inspect Frames 0, 1, 3). 0 = intact, opaque, contoured incisal edges; 15-39 = minor incisal flattening or slight edge translucency; 40-69 = distinct chipped edge, moderate attrition, or visible dentin line; 70-100 = clearly fractured/broken tooth edge or severe crown shortening.',
   tissueAppearance:
-    'Soft tissue: tongue coating, ulcers, unusual patches or discoloration on tongue, palate and cheeks. 0 = evenly pink, no coating; 100 = a large ulcer/patch or heavy coating. Score by the most affected area — a single distinct lesion is a real finding.',
+    'Dorsal tongue and oral mucosa health (inspect Frame 2 primarily, plus labial/buccal mucosa in Frames 0, 1, 3). Look for white/yellow/brown dorsal tongue biofilm coating, fissuring, geographic patches, scalloped lateral borders, aphthous ulcers, or mucosal erythema/leukoplakia-like patches. 0 = evenly pink dorsal tongue with clean papillae and smooth pink mucosa; 15-39 = thin partial white coating on posterior tongue; 40-69 = thick widespread tongue coating or small localized mucosal spot; 70-100 = heavy dense coating or a distinct ulcer/patch.',
   calculusStain:
-    'Hard deposits (tartar) and extrinsic staining. 0 = none; 100 = substantial deposits or heavy staining across many teeth.',
+    'Mineralised supragingival calculus (hard chalky yellow/tan/brown tartar bridges, especially at lower anterior tooth necks and interdental spaces) and extrinsic chromogenic staining (coffee/tea/tobacco/chlorhexidine brown-black lines) (inspect Frames 0, 1, 3). 0 = no tartar or stain; 15-39 = minor interdental stain or trace cervical tartar; 40-69 = distinct calcified ledge or dark staining on multiple teeth; 70-100 = heavy bridging calculus or extensive dark extrinsic staining.',
 }
 
 /**
