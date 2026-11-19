@@ -24,8 +24,14 @@ import GalleryIcon from '@/icons/image.png'
 const MAX_DIMENSION = 1280
 const ZOOM_PRESETS = [1, 1.5, 2, 2.5, 3] as const
 
+// Number of consecutive 350ms "Green / Ready" checks required to auto-snap (~1.4 seconds steady)
+const AUTO_SNAP_REQUIRED_TICKS = 4
+// Grace period (ms) after changing steps so user has time to hear the instruction and change pose
+const STEP_TRANSITION_COOLDOWN_MS = 2600
+
 interface StepGuidance {
   icon: string
+  shortPose: string
   headline: string
   subtext: string
   voicePrompt: string
@@ -36,44 +42,48 @@ interface StepGuidance {
 const STEP_GUIDANCE: Record<string, StepGuidance> = {
   'front-teeth': {
     icon: '😁',
+    shortPose: 'Pose 1: Wide Smile',
     headline: 'Smile wide & bite gently together',
-    subtext: '2x Macro Zoom active — center your upper & lower front teeth in the arch',
+    subtext: 'Hold steady in the green arch — camera will auto-snap in 1.5s',
     voicePrompt:
-      'Step 1, Front teeth. Smile wide, bite gently together, and fit your front teeth inside the zoomed guide frame.',
+      'Step 1, Front teeth. Smile wide, bite gently together, and hold steady inside the frame.',
     distanceTip: '2x Macro Zoom · Hold phone 15–20 cm away',
     recommendedZoom: 2,
   },
   'upper-gums': {
     icon: '⬆️',
-    headline: 'Tilt chin UP & lift top lip with clean fingers',
-    subtext: 'Expose your upper gumline where top teeth meet the gums',
+    shortPose: 'Pose 2: Lift Top Lip',
+    headline: 'Tilt chin UP & lift top lip with fingers',
+    subtext: 'Show your upper gumline and hold steady for auto-snap',
     voicePrompt:
-      'Step 2, Upper gums. Tilt your chin slightly upward and lift your upper lip so your top gums fill the frame.',
-    distanceTip: '2.2x Macro Zoom · Tilt chin upward ~20°',
-    recommendedZoom: 2.2,
+      'Photo 1 captured! Now Step 2, Upper gums. Tilt your chin slightly up, lift your top lip with your fingers, and hold steady.',
+    distanceTip: '2x Macro Zoom · Tilt chin upward ~20°',
+    recommendedZoom: 2,
   },
   tongue: {
     icon: '👅',
+    shortPose: 'Pose 3: Tongue Out',
     headline: 'Open mouth wide & stick your tongue out flat',
-    subtext: 'Center the top surface of your tongue inside the oval guide',
+    subtext: 'Center your tongue inside the oval and hold steady for auto-snap',
     voicePrompt:
-      'Step 3, Tongue. Open your mouth wide and stick your tongue out flat inside the oval guide.',
+      'Photo 2 captured! Now Step 3, Tongue. Open your mouth wide, stick your tongue out flat, and hold steady.',
     distanceTip: '2x Macro Zoom · Relax tongue forward',
     recommendedZoom: 2,
   },
   'lower-gums': {
     icon: '⬇️',
+    shortPose: 'Pose 4: Pull Bottom Lip',
     headline: 'Tilt chin DOWN & pull bottom lip down gently',
-    subtext: 'Expose your lower gumline and lower front tooth necks',
+    subtext: 'Show your lower gumline and hold steady for final auto-snap',
     voicePrompt:
-      'Step 4, Lower gums. Tilt your chin slightly downward and pull your bottom lip down to show your lower gums.',
-    distanceTip: '2.2x Macro Zoom · Tilt chin downward ~20°',
-    recommendedZoom: 2.2,
+      'Photo 3 captured! Final step, Lower gums. Tilt your chin slightly down, pull your bottom lip down, and hold steady.',
+    distanceTip: '2x Macro Zoom · Tilt chin downward ~20°',
+    recommendedZoom: 2,
   },
 }
 
-/** Plays a soft beep for the 3-second hands-free countdown timer using Web Audio API. */
-function playCountdownBeep(finalSnap = false) {
+/** Plays an audio cue (soft tick while holding steady, or dual chime on capture). */
+function playAudioCue(type: 'tick' | 'snap') {
   try {
     const AudioCtx =
       window.AudioContext ||
@@ -83,14 +93,28 @@ function playCountdownBeep(finalSnap = false) {
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = 'sine'
-    osc.frequency.value = finalSnap ? 880 : 520
-    gain.gain.value = 0.08
+    osc.frequency.value = type === 'snap' ? 920 : 540
+    gain.gain.value = type === 'snap' ? 0.12 : 0.05
     osc.connect(gain)
     gain.connect(ctx.destination)
     osc.start()
-    osc.stop(ctx.currentTime + (finalSnap ? 0.16 : 0.09))
+    osc.stop(ctx.currentTime + (type === 'snap' ? 0.18 : 0.07))
   } catch {
     // Ignore audio context restrictions if not permitted
+  }
+}
+
+/** Speaks a short English instruction using the browser's Web Speech API. */
+function speakEnglish(text: string) {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+  try {
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'en-GB'
+    utterance.rate = 0.98
+    window.speechSynthesis.speak(utterance)
+  } catch {
+    // Ignore if speech synthesis is blocked
   }
 }
 
@@ -247,33 +271,35 @@ export function PhotoCaptureFlow() {
     steps.map(() => undefined),
   )
 
-  // Non-technical user helper states + Macro Dental Zoom (defaults to 2.0x Macro!)
+  // Non-technical user helper states — Hands-Free Auto-Snap & English Voice ON by default!
   const [guidedMode, setGuidedMode] = useState<'v2' | 'v1'>('v2')
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user')
   const [isMirrored, setIsMirrored] = useState(true)
   const [zoomLevel, setZoomLevel] = useState<number>(2)
   const [hwZoomApplied, setHwZoomApplied] = useState<number>(1)
-  const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const [autoSnapEnabled, setAutoSnapEnabled] = useState(true)
+  const [voiceEnabled, setVoiceEnabled] = useState(true)
   const [screenLightOn, setScreenLightOn] = useState(false)
-  const [timerEnabled, setTimerEnabled] = useState(false)
-  const [countdown, setCountdown] = useState<number | null>(null)
+  const [autoHoldTicks, setAutoHoldTicks] = useState(0)
+  const [shutterFlash, setShutterFlash] = useState(false)
   const [liveFeedback, setLiveFeedback] = useState<LiveFrameFeedback | null>(null)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pinchStartDistRef = useRef<number | null>(null)
   const pinchStartZoomRef = useRef<number>(2)
+  const stepCooldownUntilRef = useRef<number>(0)
+  const autoHoldTicksRef = useRef<number>(0)
+  const isCapturingRef = useRef<boolean>(false)
 
   const [captures, setCaptures] = useState<string[]>([])
   const [streamReady, setStreamReady] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Effective digital/sensor crop factor after accounting for any hardware optical zoom
   const effectiveCropZoom = guidedMode === 'v1' ? 1 : Math.max(1, zoomLevel / hwZoomApplied)
 
-  // Request high-resolution 1920x1440 / 1080p stream so 2x-3x macro sensor crop remains crisp
+  // Request high-resolution 1920x1440 stream so 2x-3x macro sensor crop remains crisp
   useEffect(() => {
     let cancelled = false
     setStreamReady(false)
@@ -301,11 +327,14 @@ export function PhotoCaptureFlow() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream
           await videoRef.current.play().catch(() => undefined)
+          stepCooldownUntilRef.current = Date.now() + STEP_TRANSITION_COOLDOWN_MS
           setStreamReady(true)
           setError(null)
         }
       } catch {
-        setError('Camera permission was denied, or no camera was found. You can pick a photo instead.')
+        setError(
+          'Camera permission was denied, or no camera was found. You can pick a photo instead.',
+        )
       }
     }
 
@@ -318,7 +347,7 @@ export function PhotoCaptureFlow() {
     }
   }, [facingMode])
 
-  // Apply hardware camera zoom when the device lens supports it; fallback/combine with sensor crop
+  // Apply hardware camera zoom when supported
   useEffect(() => {
     const track = streamRef.current?.getVideoTracks()?.[0]
     if (!track || !streamReady) {
@@ -364,67 +393,21 @@ export function PhotoCaptureFlow() {
     }
   }, [screenLightOn, streamReady])
 
-  // Spoken voice instructions when step changes
+  // Spoken English voice instructions + reset auto-snap cooldown on every step change
   useEffect(() => {
-    if (
-      !voiceEnabled ||
-      phase !== 'capture' ||
-      typeof window === 'undefined' ||
-      !('speechSynthesis' in window)
-    ) {
-      return
-    }
-    try {
-      window.speechSynthesis.cancel()
-      const utterance = new SpeechSynthesisUtterance(guidance.voicePrompt)
-      utterance.rate = 0.96
-      window.speechSynthesis.speak(utterance)
-    } catch {
-      // Ignore if speechSynthesis is unavailable
-    }
+    stepCooldownUntilRef.current = Date.now() + STEP_TRANSITION_COOLDOWN_MS
+    autoHoldTicksRef.current = 0
+    setAutoHoldTicks(0)
+
+    if (!voiceEnabled || phase !== 'capture' || guidedMode !== 'v2') return
+    speakEnglish(guidance.voicePrompt)
+
     return () => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         window.speechSynthesis.cancel()
       }
     }
-  }, [step, voiceEnabled, phase, guidance.voicePrompt])
-
-  // Real-time 350ms live frame analyzer on the EXACT zoomed-in mouth region
-  useEffect(() => {
-    if (!streamReady || phase !== 'capture' || guidedMode !== 'v2') return
-    const id = setInterval(() => {
-      if (videoRef.current) {
-        const result = assessLiveVideoFrame(videoRef.current, effectiveCropZoom)
-        if (result) setLiveFeedback(result)
-      }
-    }, 350)
-    return () => clearInterval(id)
-  }, [streamReady, phase, guidedMode, effectiveCropZoom])
-
-  // Two-finger pinch-to-zoom handlers on the camera viewfinder
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2) {
-      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX
-      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY
-      pinchStartDistRef.current = Math.hypot(dx, dy)
-      pinchStartZoomRef.current = zoomLevel
-    }
-  }
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
-      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX
-      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY
-      const dist = Math.hypot(dx, dy)
-      const ratio = dist / Math.max(1, pinchStartDistRef.current)
-      const nextZoom = Math.round(Math.min(3.5, Math.max(1, pinchStartZoomRef.current * ratio)) * 10) / 10
-      setZoomLevel(nextZoom)
-    }
-  }
-
-  const handleTouchEnd = () => {
-    pinchStartDistRef.current = null
-  }
+  }, [step, voiceEnabled, phase, guidedMode, guidance.voicePrompt])
 
   const handleCaptured = useCallback(
     async (dataUrl: string) => {
@@ -451,10 +434,128 @@ export function PhotoCaptureFlow() {
         setStep((s) => s + 1)
         return
       }
+      if (voiceEnabled && guidedMode === 'v2') {
+        speakEnglish('All 4 photos captured! Review your quality check below.')
+      }
       setPhase('review')
     },
-    [step, total],
+    [step, total, voiceEnabled, guidedMode],
   )
+
+  /**
+   * Captures the exact zoomed-in Macro ROI from the raw camera sensor stream,
+   * flashes the white shutter overlay, plays the snap chime, and advances.
+   */
+  const captureImmediate = useCallback(() => {
+    if (isCapturingRef.current) return
+    const video = videoRef.current
+    if (!video || !video.videoWidth) return
+
+    isCapturingRef.current = true
+    autoHoldTicksRef.current = 0
+    setAutoHoldTicks(0)
+    setShutterFlash(true)
+    playAudioCue('snap')
+    setTimeout(() => setShutterFlash(false), 180)
+
+    const z = Math.max(1, Math.min(3.5, effectiveCropZoom))
+    const srcW = video.videoWidth / z
+    const srcH = video.videoHeight / z
+    const srcX = (video.videoWidth - srcW) / 2
+    const srcY = (video.videoHeight - srcH) / 2
+
+    const scale = Math.min(1, MAX_DIMENSION / Math.max(srcW, srcH))
+    const width = Math.max(1, Math.round(srcW * scale))
+    const height = Math.max(1, Math.round(srcH * scale))
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) {
+      isCapturingRef.current = false
+      return
+    }
+    ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, width, height)
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92)
+
+    setTimeout(() => {
+      isCapturingRef.current = false
+      void handleCaptured(dataUrl)
+    }, 150)
+  }, [handleCaptured, effectiveCropZoom])
+
+  // Real-time 350ms live frame analyzer + Hands-Free Auto-Snap engine
+  useEffect(() => {
+    if (!streamReady || phase !== 'capture' || guidedMode !== 'v2') return
+    const id = setInterval(() => {
+      if (!videoRef.current || isCapturingRef.current) return
+      const result = assessLiveVideoFrame(videoRef.current, effectiveCropZoom)
+      if (!result) return
+      setLiveFeedback(result)
+
+      if (!autoSnapEnabled) {
+        if (autoHoldTicksRef.current !== 0) {
+          autoHoldTicksRef.current = 0
+          setAutoHoldTicks(0)
+        }
+        return
+      }
+
+      // Wait for step transition cooldown so user can position their mouth for the new step
+      if (Date.now() < stepCooldownUntilRef.current) {
+        if (autoHoldTicksRef.current !== 0) {
+          autoHoldTicksRef.current = 0
+          setAutoHoldTicks(0)
+        }
+        return
+      }
+
+      if (result.state === 'ready') {
+        const nextTicks = autoHoldTicksRef.current + 1
+        autoHoldTicksRef.current = nextTicks
+        setAutoHoldTicks(nextTicks)
+
+        if (nextTicks >= AUTO_SNAP_REQUIRED_TICKS) {
+          autoHoldTicksRef.current = 0
+          setAutoHoldTicks(0)
+          captureImmediate()
+        } else {
+          playAudioCue('tick')
+        }
+      } else if (autoHoldTicksRef.current > 0) {
+        autoHoldTicksRef.current = 0
+        setAutoHoldTicks(0)
+      }
+    }, 350)
+    return () => clearInterval(id)
+  }, [streamReady, phase, guidedMode, effectiveCropZoom, autoSnapEnabled, captureImmediate])
+
+  // Two-finger pinch-to-zoom handlers
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX
+      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY
+      pinchStartDistRef.current = Math.hypot(dx, dy)
+      pinchStartZoomRef.current = zoomLevel
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+      const dx = e.touches[0]!.clientX - e.touches[1]!.clientX
+      const dy = e.touches[0]!.clientY - e.touches[1]!.clientY
+      const dist = Math.hypot(dx, dy)
+      const ratio = dist / Math.max(1, pinchStartDistRef.current)
+      const nextZoom =
+        Math.round(Math.min(3.5, Math.max(1, pinchStartZoomRef.current * ratio)) * 10) / 10
+      setZoomLevel(nextZoom)
+    }
+  }
+
+  const handleTouchEnd = () => {
+    pinchStartDistRef.current = null
+  }
 
   const handleRetake = (index: number) => {
     retakeIndexRef.current = index
@@ -485,68 +586,6 @@ export function PhotoCaptureFlow() {
     }
   })
 
-  /**
-   * Captures the exact zoomed-in Macro ROI from the raw camera sensor stream!
-   * Instead of saving the wide-angle room/face, this crops directly to the
-   * center `1 / effectiveCropZoom` mouth window and outputs up to 1280px of
-   * pure dental/gingival/tongue detail at 0.92 JPEG quality.
-   */
-  const captureImmediate = useCallback(() => {
-    const video = videoRef.current
-    if (!video || !video.videoWidth) return
-
-    const z = Math.max(1, Math.min(3.5, effectiveCropZoom))
-    const srcW = video.videoWidth / z
-    const srcH = video.videoHeight / z
-    const srcX = (video.videoWidth - srcW) / 2
-    const srcY = (video.videoHeight - srcH) / 2
-
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(srcW, srcH))
-    const width = Math.max(1, Math.round(srcW * scale))
-    const height = Math.max(1, Math.round(srcH * scale))
-
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, width, height)
-    void handleCaptured(canvas.toDataURL('image/jpeg', 0.92))
-  }, [handleCaptured, effectiveCropZoom])
-
-  const triggerShutter = () => {
-    if (!streamReady) return
-    if (!timerEnabled || guidedMode === 'v1') {
-      captureImmediate()
-      return
-    }
-    if (countdown !== null) return
-
-    let remaining = 3
-    setCountdown(remaining)
-    playCountdownBeep(false)
-
-    countdownTimerRef.current = setInterval(() => {
-      remaining -= 1
-      if (remaining > 0) {
-        setCountdown(remaining)
-        playCountdownBeep(false)
-      } else {
-        if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-        countdownTimerRef.current = null
-        setCountdown(null)
-        playCountdownBeep(true)
-        captureImmediate()
-      }
-    }, 850)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-    }
-  }, [])
-
   const flipCamera = () => {
     setFacingMode((prev) => {
       const next = prev === 'user' ? 'environment' : 'user'
@@ -574,6 +613,8 @@ export function PhotoCaptureFlow() {
         : liveFeedback.state === 'adjust'
           ? '#fbbf24'
           : '#f87171'
+
+  const holdPercent = Math.min(100, Math.round((autoHoldTicks / AUTO_SNAP_REQUIRED_TICKS) * 100))
 
   return (
     <>
@@ -633,16 +674,33 @@ export function PhotoCaptureFlow() {
               <div className="flex items-center gap-2xs">
                 <button
                   type="button"
-                  onClick={() => setVoiceEnabled((v) => !v)}
+                  onClick={() => setAutoSnapEnabled((a) => !a)}
+                  className={cn(
+                    'rounded-full px-sm py-2xs text-nav font-semibold transition-colors',
+                    autoSnapEnabled
+                      ? 'bg-[#059669] text-surface'
+                      : 'border border-border bg-surface text-foreground-secondary',
+                  )}
+                  title="Hands-Free Auto-Snap when frame turns green"
+                >
+                  {autoSnapEnabled ? '🤖 Auto-Snap: ON' : '🤖 Auto: OFF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !voiceEnabled
+                    setVoiceEnabled(next)
+                    if (next) speakEnglish(guidance.voicePrompt)
+                  }}
                   className={cn(
                     'rounded-full px-sm py-2xs text-nav font-medium transition-colors',
                     voiceEnabled
                       ? 'bg-primary text-surface'
                       : 'border border-border bg-surface text-foreground-secondary',
                   )}
-                  title="Read instructions out loud"
+                  title="Read instructions out loud in English"
                 >
-                  {voiceEnabled ? '🔊 Voice On' : '🔇 Voice'}
+                  {voiceEnabled ? '🔊 Voice' : '🔇 Mute'}
                 </button>
                 <button
                   type="button"
@@ -659,19 +717,6 @@ export function PhotoCaptureFlow() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTimerEnabled((t) => !t)}
-                  className={cn(
-                    'rounded-full px-sm py-2xs text-nav font-medium transition-colors',
-                    timerEnabled
-                      ? 'bg-primary text-surface'
-                      : 'border border-border bg-surface text-foreground-secondary',
-                  )}
-                  title="3-second hands-free countdown timer"
-                >
-                  {timerEnabled ? '⏱️ 3s On' : '⏱️ 3s'}
-                </button>
-                <button
-                  type="button"
                   onClick={() => setIsMirrored((m) => !m)}
                   className="rounded-full border border-border bg-surface px-sm py-2xs text-nav font-medium text-foreground-secondary"
                   title="Toggle horizontal mirror"
@@ -682,7 +727,7 @@ export function PhotoCaptureFlow() {
             )}
           </div>
 
-          {/* Live Camera Viewfinder with Macro Zoom + SVG Dental Alignment Guide */}
+          {/* Live Camera Viewfinder with Macro Zoom + Hands-Free Auto-Snap */}
           <div
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
@@ -714,6 +759,11 @@ export function PhotoCaptureFlow() {
               }}
             />
 
+            {/* White camera shutter flash effect on capture */}
+            {shutterFlash && (
+              <div className="pointer-events-none absolute inset-0 z-30 bg-surface opacity-90 transition-opacity" />
+            )}
+
             {(!streamReady || error) && (
               <Image
                 src="/images/default-teeth-scan.png"
@@ -728,8 +778,8 @@ export function PhotoCaptureFlow() {
             {/* v2 Visual Overlay Layer */}
             {guidedMode === 'v2' && streamReady && !error && (
               <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-sm">
-                {/* Top live alignment traffic-light status pill */}
-                <div className="flex justify-center pt-xs">
+                {/* Top live alignment traffic-light status pill + Auto-Snap hold meter */}
+                <div className="flex flex-col items-center gap-2xs pt-xs">
                   <span
                     className={cn(
                       'rounded-full px-md py-2xs text-nav font-semibold shadow-md backdrop-blur-md transition-colors',
@@ -740,25 +790,30 @@ export function PhotoCaptureFlow() {
                           : 'border border-[#f87171] bg-[#7f1d1d]/90 text-[#fecaca]',
                     )}
                   >
-                    {liveFeedback?.message ?? guidance.distanceTip}
+                    {autoHoldTicks > 0
+                      ? `🤖 Hold steady… Auto-snapping (${holdPercent}%)`
+                      : (liveFeedback?.message ?? guidance.distanceTip)}
                   </span>
+
+                  {/* Auto-Snap Hold Progress Bar */}
+                  {autoSnapEnabled && autoHoldTicks > 0 && (
+                    <div className="h-1.5 w-44 overflow-hidden rounded-full bg-foreground/60">
+                      <div
+                        className="h-full rounded-full bg-[#34d399] transition-all duration-300"
+                        style={{ width: `${holdPercent}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Center angle-specific SVG mouth & teeth framing guide */}
                 <div className="relative flex flex-1 items-center justify-center">
                   <AngleGuideOverlay stepId={current.id} color={guideColor} />
-                  {countdown !== null && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-foreground/40 backdrop-blur-[2px]">
-                      <span className="text-[64px] font-bold text-surface drop-shadow-lg">
-                        {countdown}
-                      </span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Interactive Macro Zoom Selector Bar + Bottom Instruction Card */}
                 <div className="flex flex-col gap-xs">
-                  {/* Macro Zoom Pill Selector (Pointer events enabled!) */}
+                  {/* Macro Zoom Pill Selector */}
                   <div className="pointer-events-auto mx-auto flex items-center gap-2xs rounded-full border border-surface/20 bg-foreground/75 px-xs py-2xs backdrop-blur-md">
                     <span className="px-xs text-nav font-medium text-surface/80">🔍 Zoom:</span>
                     {ZOOM_PRESETS.map((preset) => {
@@ -781,16 +836,21 @@ export function PhotoCaptureFlow() {
                     })}
                   </div>
 
-                  {/* Plain-English positioning card */}
-                  <div className="rounded-3 border border-surface/15 bg-foreground/80 px-md py-sm text-surface backdrop-blur-md">
+                  {/* Plain-English positioning card with replay voice button */}
+                  <div className="pointer-events-auto rounded-3 border border-surface/15 bg-foreground/80 px-md py-sm text-surface backdrop-blur-md">
                     <div className="flex items-center gap-sm">
                       <span className="text-h1" aria-hidden="true">
                         {guidance.icon}
                       </span>
                       <div className="flex flex-1 flex-col">
-                        <span className="text-body font-semibold text-surface">
-                          {guidance.headline}
-                        </span>
+                        <div className="flex items-center justify-between gap-xs">
+                          <span className="text-body font-semibold text-surface">
+                            {guidance.headline}
+                          </span>
+                          <span className="shrink-0 rounded bg-[#2dd4bf]/20 px-xs py-2xs text-nav font-semibold text-[#5eead4]">
+                            {guidance.shortPose}
+                          </span>
+                        </div>
                         <span className="text-nav text-surface/80">{guidance.subtext}</span>
                       </div>
                     </div>
@@ -806,7 +866,7 @@ export function PhotoCaptureFlow() {
             </p>
           )}
 
-          {/* Controls — gallery (left) + shutter (centre) + flip camera (right) */}
+          {/* Controls — gallery (left) + manual shutter (centre) + flip camera (right) */}
           <div className="relative mt-auto flex items-center justify-center pt-sm">
             <button
               type="button"
@@ -821,8 +881,8 @@ export function PhotoCaptureFlow() {
             <button
               type="button"
               aria-label={`Take photo — ${current.label}`}
-              onClick={triggerShutter}
-              disabled={!streamReady || countdown !== null}
+              onClick={captureImmediate}
+              disabled={!streamReady}
               className={cn(
                 'relative rounded-full transition-transform active:scale-95 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-40',
                 guidedMode === 'v2' &&
