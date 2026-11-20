@@ -18,11 +18,11 @@ export function GreetingHeader() {
   return (
     <header className="flex items-center justify-between gap-sm">
       <div className="flex items-center gap-sm">
-        <div className="flex size-11 shrink-0 items-center justify-center rounded-full bg-surface shadow-drop">
+        <div className="flex size-11 shrink-0 items-center justify-center rounded-full border-2 border-secondary/35 bg-surface shadow-drop ring-2 ring-surface">
           <DentaVueLogo aria-hidden="true" focusable="false" className="size-7" />
         </div>
         <div className="flex flex-col">
-          <span className="text-h1-lg leading-tight font-semibold tracking-tight text-foreground">
+          <span className="text-h1 leading-tight font-bold tracking-tight text-foreground">
             DentaVue
           </span>
           <span className="text-body font-medium text-foreground-secondary">Hi, {name}</span>
