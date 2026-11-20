@@ -327,7 +327,7 @@ describe('deriveRisk', () => {
   })
 
   it('returns one row per tracked area', () => {
-    expect(deriveRisk(scoreParameters(uniform(20)))).toHaveLength(4)
+    expect(deriveRisk(scoreParameters(uniform(20)))).toHaveLength(6)
   })
 })
 

@@ -42,12 +42,34 @@ export function RiskAreas({ fallback }: { fallback: RiskItem[] }) {
     <Card>
       <ol className="flex flex-col divide-y divide-border">
         {items.map((item, i) => {
-          // More areas than chips would crash on a missing icon; the backend
-          // sends four, but a contract change should degrade, not throw.
-          const NumberChip = NUMBER_ICONS[i % NUMBER_ICONS.length]!
+          const NumberChip = NUMBER_ICONS[i]
           return (
             <li key={item.id} className="flex items-center gap-md py-md first:pt-0 last:pb-0">
-              <NumberChip aria-hidden="true" className="size-8 shrink-0" />
+              {NumberChip ? (
+                <NumberChip aria-hidden="true" className="size-8 shrink-0" />
+              ) : (
+                <svg
+                  width="32"
+                  height="32"
+                  viewBox="0 0 32 32"
+                  fill="none"
+                  aria-hidden="true"
+                  className="size-8 shrink-0"
+                >
+                  <rect width="32" height="32" rx="8.53333" fill="#ECE7DF" />
+                  <text
+                    x="16"
+                    y="21.5"
+                    textAnchor="middle"
+                    fill="#221E19"
+                    fontSize="15.5"
+                    fontWeight="700"
+                    fontFamily="inherit"
+                  >
+                    {i + 1}
+                  </text>
+                </svg>
+              )}
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="text-h2 font-semibold text-foreground">{item.title}</span>
                 <span className="text-body text-foreground-secondary">{item.detail}</span>

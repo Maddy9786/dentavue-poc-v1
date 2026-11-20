@@ -360,7 +360,7 @@ function bandDelta(current: Band, previous: Band | null): number {
   return bandValue(previous) - bandValue(current)
 }
 
-/** Rows of the Risk assessment screen, in a fixed display order. */
+/** Rows of the Risk assessment screen, in a fixed display order (all 6 tracked parameters). */
 const RISK_ROWS: { id: string; parameter: ParameterKey; title: string; detail: string }[] = [
   {
     id: 'oral-tissue',
@@ -389,6 +389,18 @@ const RISK_ROWS: { id: string; parameter: ParameterKey; title: string; detail: s
     // location from the model's regions; the title must not contradict it.
     title: 'Gum line change',
     detail: 'Gum margin position',
+  },
+  {
+    id: 'enamel-wear',
+    parameter: 'enamelWear',
+    title: 'Enamel condition',
+    detail: 'Surface and biting-edge wear',
+  },
+  {
+    id: 'tartar-stain',
+    parameter: 'calculusStain',
+    title: 'Tartar & staining',
+    detail: 'Mineralised deposits and surface stain',
   },
 ]
 
@@ -454,6 +466,22 @@ const GLANCE_ROWS: {
     title: 'Plaque risk',
     healthy: 'Little visible buildup.',
     watch: 'Slight buildup near the molars.',
+  },
+  {
+    id: 'gum-line',
+    parameter: 'gumMarginRecession',
+    icon: 'gum',
+    title: 'Gum line',
+    healthy: 'Margins sitting even and full.',
+    watch: 'Early margin drop or root exposure.',
+  },
+  {
+    id: 'tartar-stain',
+    parameter: 'calculusStain',
+    icon: 'plaque',
+    title: 'Tartar & stain',
+    healthy: 'No visible tartar or surface stain.',
+    watch: 'Hard buildup or staining noticed.',
   },
 ]
 
@@ -533,6 +561,8 @@ const COMPARE_ROWS: { id: string; parameter: ParameterKey; label: string }[] = [
   { id: 'plaque', parameter: 'plaqueExtent', label: 'Plaque control' },
   { id: 'depth', parameter: 'gumMarginRecession', label: 'Gum margin depth (est.)' },
   { id: 'tissue', parameter: 'tissueAppearance', label: 'Oral tissue' },
+  { id: 'enamel', parameter: 'enamelWear', label: 'Enamel condition' },
+  { id: 'tartar-stain', parameter: 'calculusStain', label: 'Tartar & stain control' },
 ]
 
 /**

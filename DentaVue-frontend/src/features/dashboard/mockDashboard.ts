@@ -138,6 +138,22 @@ export const healthMetrics: HealthMetric[] = [
     tone: 'watch',
     trend: 'stable',
   },
+  {
+    id: 'gum-line',
+    title: 'Gum line',
+    description: 'Margins sitting even and full.',
+    status: 'Healthy',
+    tone: 'positive',
+    trend: 'stable',
+  },
+  {
+    id: 'tartar-stain',
+    title: 'Tartar & stain',
+    description: 'No visible tartar or surface stain.',
+    status: 'Healthy',
+    tone: 'positive',
+    trend: 'stable',
+  },
 ]
 
 export const aiInsight: AiInsight = {
@@ -300,8 +316,10 @@ export const compareTwo: CompareTwoView = {
   metrics: [
     { id: 'gum-index', label: 'Gum health index', from: '72', to: '64', badge: 'Improving', tone: 'improving' },
     { id: 'plaque', label: 'Plaque control', from: '72', to: '64', badge: 'Stable', tone: 'stable' },
-    { id: 'pocket', label: 'Pocket depth (LL)', from: '3.2', to: '4.5 mm', badge: 'Stable', tone: 'stable' },
-    { id: 'inflammation', label: 'Inflammation', from: 'Mild', to: 'Severe', badge: 'Needs Attention', tone: 'attention' },
+    { id: 'pocket', label: 'Gum margin depth (est.)', from: '~2 mm', to: '~2 mm', badge: 'Stable', tone: 'stable' },
+    { id: 'tissue', label: 'Oral tissue', from: '100', to: '100', badge: 'Stable', tone: 'stable' },
+    { id: 'enamel', label: 'Enamel condition', from: '75', to: '75', badge: 'Stable', tone: 'stable' },
+    { id: 'tartar-stain', label: 'Tartar & stain control', from: '75', to: '100', badge: 'Improving', tone: 'improving' },
   ],
   overall: {
     title: 'Overall · 60-day change',
@@ -491,7 +509,7 @@ export const riskAssessment: {
   items: RiskItem[]
 } = {
   completeTitle: 'Analysis complete',
-  completeSubtitle: 'Across 4 areas tracked this cycle',
+  completeSubtitle: 'Across 6 areas tracked this cycle',
   ctaLabel: 'View full results',
   items: [
     {
@@ -517,10 +535,24 @@ export const riskAssessment: {
     },
     {
       id: 'gum-line-change',
-      title: 'Upper gum line change',
+      title: 'Gum line change',
       detail: 'Possible early recession',
       level: 'Attention',
       tone: 'attention',
+    },
+    {
+      id: 'enamel-wear',
+      title: 'Enamel condition',
+      detail: 'Surface and biting-edge wear',
+      level: 'Low',
+      tone: 'good',
+    },
+    {
+      id: 'tartar-stain',
+      title: 'Tartar & staining',
+      detail: 'Mineralised deposits and surface stain',
+      level: 'Low',
+      tone: 'good',
     },
   ],
 }
@@ -619,6 +651,24 @@ export const scanResults: {
       description: 'Slight buildup near upper molars.',
       status: 'Watch',
       tone: 'watch',
+      trend: 'stable',
+    },
+    {
+      id: 'gum-line',
+      icon: 'gum',
+      title: 'Gum line',
+      description: 'Margins sitting even and full.',
+      status: 'Healthy',
+      tone: 'positive',
+      trend: 'stable',
+    },
+    {
+      id: 'tartar-stain',
+      icon: 'plaque',
+      title: 'Tartar & stain',
+      description: 'No visible tartar or surface stain.',
+      status: 'Healthy',
+      tone: 'positive',
       trend: 'stable',
     },
   ],
