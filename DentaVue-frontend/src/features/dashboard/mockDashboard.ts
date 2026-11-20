@@ -108,7 +108,7 @@ export const oralHealthIndex: OralHealthIndex = {
 export const healthMetrics: HealthMetric[] = [
   {
     id: 'gum-lower',
-    title: 'Gum health',
+    title: 'Gum Health',
     description: 'Redness is settling nicely along your lower gums.',
     status: 'Improving',
     tone: 'positive',
@@ -116,7 +116,7 @@ export const healthMetrics: HealthMetric[] = [
   },
   {
     id: 'enamel',
-    title: 'Enamel',
+    title: 'Tooth Strength',
     description: 'Tooth surfaces look strong · gentle wear on front edges.',
     status: 'Healthy',
     tone: 'positive',
@@ -124,7 +124,7 @@ export const healthMetrics: HealthMetric[] = [
   },
   {
     id: 'oral-tissue',
-    title: 'Oral tissue',
+    title: 'Tongue & Cheeks',
     description: 'Tongue and inner cheeks look clear and healthy.',
     status: 'Normal',
     tone: 'positive',
@@ -132,7 +132,7 @@ export const healthMetrics: HealthMetric[] = [
   },
   {
     id: 'plaque-risk',
-    title: 'Plaque risk',
+    title: 'Tooth Cleanliness',
     description: 'A little soft buildup near your upper back teeth.',
     status: 'Watch',
     tone: 'watch',
@@ -140,7 +140,7 @@ export const healthMetrics: HealthMetric[] = [
   },
   {
     id: 'gum-line',
-    title: 'Gum line',
+    title: 'Gum Line',
     description: 'Gums are sitting evenly around your teeth.',
     status: 'Healthy',
     tone: 'positive',
@@ -148,7 +148,7 @@ export const healthMetrics: HealthMetric[] = [
   },
   {
     id: 'tartar-stain',
-    title: 'Tartar & stain',
+    title: 'Stains & Tartar',
     description: 'No hardened tartar or surface staining seen.',
     status: 'Healthy',
     tone: 'positive',
@@ -514,43 +514,43 @@ export const riskAssessment: {
   items: [
     {
       id: 'oral-tissue',
-      title: 'Oral tissue',
+      title: 'Tongue & Cheeks',
       detail: 'Tongue, roof of mouth & inner cheeks - all clear',
       level: 'Low',
       tone: 'good',
     },
     {
       id: 'gum-inflammation',
-      title: 'Gum comfort & colour',
+      title: 'Gum Health',
       detail: 'Lower-left gum edge - settling nicely',
       level: 'Low',
       tone: 'good',
     },
     {
       id: 'plaque-buildup',
-      title: 'Daily plaque buildup',
+      title: 'Tooth Cleanliness',
       detail: 'Upper-right back teeth - give extra brush time',
       level: 'Medium',
       tone: 'good',
     },
     {
       id: 'gum-line-change',
-      title: 'Gum line position',
+      title: 'Gum Line',
       detail: 'Gum edge sits slightly lower on a few teeth',
       level: 'Attention',
       tone: 'attention',
     },
     {
       id: 'enamel-wear',
-      title: 'Tooth surface & edges',
-      detail: 'Smoothness and biting-edge wear',
+      title: 'Tooth Strength',
+      detail: 'Surface smoothness and biting edges',
       level: 'Low',
       tone: 'good',
     },
     {
       id: 'tartar-stain',
-      title: 'Tartar & surface stain',
-      detail: 'Hardened buildup or tea & coffee staining',
+      title: 'Stains & Tartar',
+      detail: 'Tea/coffee staining or hardened buildup',
       level: 'Low',
       tone: 'good',
     },
@@ -620,7 +620,7 @@ export const scanResults: {
     {
       id: 'gum-health',
       icon: 'gum',
-      title: 'Gum health',
+      title: 'Gum Health',
       description: 'Redness is settling nicely along your lower gums.',
       status: 'Improving',
       tone: 'positive',
@@ -629,7 +629,7 @@ export const scanResults: {
     {
       id: 'enamel',
       icon: 'enamel',
-      title: 'Enamel',
+      title: 'Tooth Strength',
       description: 'Tooth surfaces look strong · gentle wear on front edges.',
       status: 'Healthy',
       tone: 'positive',
@@ -638,7 +638,7 @@ export const scanResults: {
     {
       id: 'oral-tissue',
       icon: 'tissue',
-      title: 'Oral tissue',
+      title: 'Tongue & Cheeks',
       description: 'Tongue and inner cheeks look clear and healthy.',
       status: 'Normal',
       tone: 'positive',
@@ -647,7 +647,7 @@ export const scanResults: {
     {
       id: 'plaque-risk',
       icon: 'plaque',
-      title: 'Plaque risk',
+      title: 'Tooth Cleanliness',
       description: 'A little soft buildup near your upper back teeth.',
       status: 'Watch',
       tone: 'watch',
@@ -656,7 +656,7 @@ export const scanResults: {
     {
       id: 'gum-line',
       icon: 'gum',
-      title: 'Gum line',
+      title: 'Gum Line',
       description: 'Gums are sitting evenly around your teeth.',
       status: 'Healthy',
       tone: 'positive',
@@ -665,7 +665,7 @@ export const scanResults: {
     {
       id: 'tartar-stain',
       icon: 'plaque',
-      title: 'Tartar & stain',
+      title: 'Stains & Tartar',
       description: 'No hardened tartar or surface staining seen.',
       status: 'Healthy',
       tone: 'positive',

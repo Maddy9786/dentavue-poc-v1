@@ -160,12 +160,18 @@ export function ScoreGauge({
           <span className="text-body text-foreground-secondary">/{max}</span>
         </div>
         {/* text-surface (#FFFFFF) overrides the badge's AA-paired dark text as
-            requested. White on this green is ~2.2:1 and fails WCAG AA — kept per
-            the design; the token stays untouched. */}
+            requested. When pointsFromLastScan is 0 (first scan or steady score),
+            show "Steady" instead of "+0 points". */}
         <Badge tone="success" className="text-surface">
-          +{pointsFromLastScan} points
+          {pointsFromLastScan > 0
+            ? `+${pointsFromLastScan} points`
+            : pointsFromLastScan < 0
+              ? `${pointsFromLastScan} points`
+              : 'Steady'}
         </Badge>
-        <span className="text-nav text-foreground-secondary">from last scan</span>
+        <span className="text-nav text-foreground-secondary">
+          {pointsFromLastScan === 0 ? 'this check' : 'from last scan'}
+        </span>
       </div>
     </div>
   )

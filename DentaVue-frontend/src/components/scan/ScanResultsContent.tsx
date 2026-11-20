@@ -183,15 +183,18 @@ export function ScanResultsContent() {
             pointsFromLastScan={pointsFromLastScan}
           />
           <div className="flex min-w-0 flex-1 flex-col gap-md">
-            <div className="flex flex-col gap-xs">
-              <span className="text-h2 text-foreground">Confidence score</span>
-              <div className="flex items-center gap-sm">
+            <div className="flex flex-col gap-2xs">
+              <span className="text-h2 text-foreground">Photo clarity & confidence</span>
+              <span className="text-nav text-foreground-secondary">
+                How clearly your 4 photos showed your mouth
+              </span>
+              <div className="flex items-center gap-sm pt-2xs">
                 <div
                   role="progressbar"
                   aria-valuenow={confidence}
                   aria-valuemin={0}
                   aria-valuemax={100}
-                  aria-label="Confidence score"
+                  aria-label="Photo clarity and confidence score"
                   className="h-2 flex-1 overflow-hidden rounded-full bg-border"
                 >
                   <div className="h-full rounded-full bg-success" style={{ width: `${confidence}%` }} />

@@ -367,38 +367,38 @@ const RISK_ROWS: { id: string; parameter: ParameterKey; title: string; detail: s
   {
     id: 'oral-tissue',
     parameter: 'tissueAppearance',
-    title: 'Oral tissue',
+    title: 'Tongue & Cheeks',
     detail: 'Tongue, roof of mouth & inner cheeks',
   },
   {
     id: 'gum-inflammation',
     parameter: 'gumInflammation',
-    title: 'Gum comfort & colour',
-    detail: 'Pink settled gums vs. redness near the edges',
+    title: 'Gum Health',
+    detail: 'Healthy pink colour vs. redness near the edges',
   },
   {
     id: 'plaque-buildup',
     parameter: 'plaqueExtent',
-    title: 'Daily plaque buildup',
-    detail: 'Soft everyday film on tooth surfaces',
+    title: 'Tooth Cleanliness',
+    detail: 'Everyday soft film on tooth surfaces',
   },
   {
     id: 'gum-line-change',
     parameter: 'gumMarginRecession',
-    title: 'Gum line position',
+    title: 'Gum Line',
     detail: 'How evenly your gums hug each tooth',
   },
   {
     id: 'enamel-wear',
     parameter: 'enamelWear',
-    title: 'Tooth surface & edges',
-    detail: 'Smoothness and biting-edge wear',
+    title: 'Tooth Strength',
+    detail: 'Surface smoothness and biting edges',
   },
   {
     id: 'tartar-stain',
     parameter: 'calculusStain',
-    title: 'Tartar & surface stain',
-    detail: 'Hardened buildup or tea & coffee staining',
+    title: 'Stains & Tartar',
+    detail: 'Tea/coffee staining or hardened buildup',
   },
 ]
 
@@ -516,7 +516,7 @@ const GLANCE_ROWS: {
     id: 'gum-health',
     parameter: 'gumInflammation',
     icon: 'gum',
-    title: 'Gum health',
+    title: 'Gum Health',
     byBand: {
       none: 'Gums look calm, pink and settled.',
       mild: 'Slight redness near a few gum edges · easy to settle with soft brushing.',
@@ -528,7 +528,7 @@ const GLANCE_ROWS: {
     id: 'enamel',
     parameter: 'enamelWear',
     icon: 'enamel',
-    title: 'Enamel',
+    title: 'Tooth Strength',
     byBand: {
       none: 'Tooth surfaces and biting edges look strong and smooth.',
       mild: 'Strong overall · minor everyday wear on the biting edges.',
@@ -540,7 +540,7 @@ const GLANCE_ROWS: {
     id: 'oral-tissue',
     parameter: 'tissueAppearance',
     icon: 'tissue',
-    title: 'Oral tissue',
+    title: 'Tongue & Cheeks',
     byBand: {
       none: 'Tongue and inner cheeks look clear and healthy.',
       mild: 'Light everyday coating on the tongue surface.',
@@ -552,7 +552,7 @@ const GLANCE_ROWS: {
     id: 'plaque-risk',
     parameter: 'plaqueExtent',
     icon: 'plaque',
-    title: 'Plaque risk',
+    title: 'Tooth Cleanliness',
     byBand: {
       none: 'Teeth look clean with very little soft buildup.',
       mild: 'A thin film of soft buildup near the gum edge.',
@@ -564,7 +564,7 @@ const GLANCE_ROWS: {
     id: 'gum-line',
     parameter: 'gumMarginRecession',
     icon: 'gum',
-    title: 'Gum line',
+    title: 'Gum Line',
     byBand: {
       none: 'Gums are sitting evenly and snugly around your teeth.',
       mild: 'Gum edge sits slightly lower on 1–2 teeth.',
@@ -576,7 +576,7 @@ const GLANCE_ROWS: {
     id: 'tartar-stain',
     parameter: 'calculusStain',
     icon: 'plaque',
-    title: 'Tartar & stain',
+    title: 'Stains & Tartar',
     byBand: {
       none: 'No hardened tartar or surface staining seen.',
       mild: 'Light tea/coffee stain or a trace of tartar between teeth.',
@@ -788,7 +788,7 @@ const PARAMETER_FRIENDLY_META: Record<
   }
 > = {
   gumInflammation: {
-    name: 'Gum health',
+    name: 'Gum Health',
     goodTitle: 'Gums look calm, pink and healthy',
     mildTitle: 'Slight gum redness noticed near the gum edge',
     watchTitle: 'Gums look red or slightly puffy along the gum edge',
@@ -805,7 +805,7 @@ const PARAMETER_FRIENDLY_META: Record<
     monitorRecommend: 'having a dentist or hygienist take a quick look if it stays red or bleeds.',
   },
   plaqueExtent: {
-    name: 'Daily plaque control',
+    name: 'Tooth Cleanliness',
     goodTitle: 'Tooth surfaces look clean and well-brushed',
     mildTitle: 'A thin layer of soft everyday buildup noticed',
     watchTitle: 'Visible soft buildup sitting near the gum line',
@@ -822,7 +822,7 @@ const PARAMETER_FRIENDLY_META: Record<
     monitorRecommend: 'a routine hygiene clean if the buildup feels hard to brush away.',
   },
   gumMarginRecession: {
-    name: 'Gum line position',
+    name: 'Gum Line',
     goodTitle: 'Gums are sitting evenly around your teeth',
     mildTitle: 'Gum edge sits slightly lower on a couple of teeth',
     watchTitle: 'Gum line sits noticeably lower on a few teeth',
@@ -839,7 +839,7 @@ const PARAMETER_FRIENDLY_META: Record<
     monitorRecommend: 'mentioning this at your next routine dental visit so they can track it.',
   },
   enamelWear: {
-    name: 'Tooth surface & edges',
+    name: 'Tooth Strength',
     goodTitle: 'Tooth surfaces and biting edges look strong',
     mildTitle: 'Gentle everyday wear on the biting edges',
     watchTitle: 'Noticeable wear or roughness on the biting edges',
@@ -856,7 +856,7 @@ const PARAMETER_FRIENDLY_META: Record<
     monitorRecommend: 'asking your dentist whether a night guard or enamel care would help.',
   },
   tissueAppearance: {
-    name: 'Tongue & inner cheeks',
+    name: 'Tongue & Cheeks',
     goodTitle: 'Tongue and inner cheeks look clear and healthy',
     mildTitle: 'Light everyday coating on the tongue surface',
     watchTitle: 'Noticeable coating or surface change on the tongue',
@@ -873,7 +873,7 @@ const PARAMETER_FRIENDLY_META: Record<
     monitorRecommend: 'having a dentist check any spot or patch that lasts more than two weeks.',
   },
   calculusStain: {
-    name: 'Tartar & surface stain',
+    name: 'Stains & Tartar',
     goodTitle: 'No hardened tartar or surface staining seen',
     mildTitle: 'Light surface staining or trace tartar between teeth',
     watchTitle: 'Hardened tartar or dark staining noticed near the gums',
