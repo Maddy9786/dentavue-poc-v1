@@ -29,14 +29,26 @@ export function LatestFindings() {
   const latestScanId = comparison?.to.scanId
   const { data: analysis } = useGetAnalysisQuery(latestScanId ?? '', { skip: !latestScanId })
 
-  const realInsight =
-    isAuthenticated && analysis?.status === 'ready' ? analysis.narrative?.insight : null
-  const summaryText = realInsight?.summary ?? aiInsight.body
-  const cardTitle = realInsight?.title ?? 'Personal Care Insight'
-  const updatedText =
-    isAuthenticated && comparison?.to.capturedAt
-      ? formatScanDate(comparison.to.capturedAt)
-      : aiInsight.updated
+  const hasRealScan = Boolean(isAuthenticated && comparison && analysis?.status === 'ready')
+  const realInsight = hasRealScan ? analysis?.narrative?.insight : null
+
+  const summaryText = !isAuthenticated
+    ? aiInsight.body
+    : hasRealScan
+      ? (realInsight?.summary ?? aiInsight.body)
+      : 'You have not taken a scan yet. Take your first 4-photo guided scan to get your personal care guide, area-by-area findings, and daily brushing tips.'
+
+  const cardTitle = !isAuthenticated
+    ? 'Personal Care Insight'
+    : hasRealScan
+      ? (realInsight?.title ?? 'Personal Care Insight')
+      : 'No mouth check yet'
+
+  const updatedText = !isAuthenticated
+    ? `Updated ${aiInsight.updated}`
+    : hasRealScan && comparison?.to.capturedAt
+      ? `Updated ${formatScanDate(comparison.to.capturedAt)}`
+      : 'Awaiting your first scan'
 
   // Auto-dismiss the toast after 2s; the cleanup covers an unmount mid-timer.
   useEffect(() => {
@@ -46,11 +58,15 @@ export function LatestFindings() {
   }, [signInToast])
 
   const handleFullAnalysis = () => {
-    if (isAuthenticated) {
-      router.push(ROUTES.patient.aiInsight)
-    } else {
+    if (!isAuthenticated) {
       setSignInToast(true)
+      return
     }
+    if (!hasRealScan) {
+      router.push(ROUTES.patient.guidedScan)
+      return
+    }
+    router.push(ROUTES.patient.aiInsight)
   }
 
   return (
@@ -63,7 +79,7 @@ export function LatestFindings() {
           <GenerativeAiIcon aria-hidden="true" className="size-9 shrink-0" />
           <div className="flex flex-col">
             <h3 className="text-h2 font-semibold text-foreground">{cardTitle}</h3>
-            <span className="text-nav text-foreground-secondary">Updated {updatedText}</span>
+            <span className="text-nav text-foreground-secondary">{updatedText}</span>
           </div>
         </div>
 
@@ -74,7 +90,7 @@ export function LatestFindings() {
           onClick={handleFullAnalysis}
           className="inline-flex items-center gap-xs self-start rounded-1 text-h2 font-medium text-foreground focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
         >
-          See full care guide
+          {isAuthenticated && !hasRealScan ? 'Take your first scan' : 'See full care guide'}
           <ArrowRightIcon aria-hidden="true" className="size-4 text-foreground" />
         </button>
       </Card>

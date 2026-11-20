@@ -72,33 +72,57 @@ function buildStats(analysis: Analysis, comparison: Comparison): OralHealthIndex
   ]
 }
 
+const emptySignedInIndex: OralHealthIndex = {
+  score: 0,
+  max: 100,
+  condition: 'No scan yet',
+  pointsFromLastScan: 0,
+  confidence: 0,
+  lastScan: 'Not scanned yet',
+  nextScan: 'Ready today',
+  stats: [
+    { label: 'Healthy Areas', value: '— of 6', note: 'awaiting scan' },
+    { label: 'Needs Care', value: '—', note: 'take first scan' },
+    { label: 'Score Trend', value: 'No scan', note: 'start today' },
+  ],
+}
+
 /**
  * Returns the card's data plus whether it's the real result (`isReal`) or the
- * placeholder. All hooks run unconditionally; the fallback is chosen from their
- * results, so hook order is stable.
+ * placeholder.
+ *   - Signed out → demo `oralHealthIndex` preview
+ *   - Signed in, 0 scans → `emptySignedInIndex` ("No scan yet")
+ *   - Signed in, with scan → live `analysis` + `comparison` figures
  */
 export function useOralHealthIndex(): { data: OralHealthIndex; isReal: boolean } {
   const isAuthenticated = useAppSelector(selectIsAuthenticated)
 
   // The comparison gives us the latest scanId + capture date without a separate
   // /scans call; skipped entirely while signed out so no request fires.
-  const { data: comparison } = useGetComparisonQuery(undefined, { skip: !isAuthenticated })
+  const { data: comparison, isLoading: isComparisonLoading } = useGetComparisonQuery(undefined, {
+    skip: !isAuthenticated,
+  })
 
   // Confidence and points-vs-last-scan live on the latest scan's own analysis.
   const latestScanId = comparison?.to.scanId
-  const { data: analysis } = useGetAnalysisQuery(latestScanId ?? '', { skip: !latestScanId })
+  const { data: analysis, isLoading: isAnalysisLoading } = useGetAnalysisQuery(latestScanId ?? '', {
+    skip: !latestScanId,
+  })
 
-  // Fall back to the documented placeholder until a READY analysis for the latest
-  // scan exists: signed out, no scans (comparison null), still loading, or the
-  // model hasn't finished. The `score == null` guard also narrows the type below.
+  if (!isAuthenticated) {
+    return { data: oralHealthIndex, isReal: false }
+  }
+
+  // Signed in, and either has 0 scans (comparison === null) or analysis isn't ready yet
   if (
-    !isAuthenticated ||
+    isComparisonLoading ||
+    isAnalysisLoading ||
     !comparison ||
     !analysis ||
     analysis.status !== 'ready' ||
     analysis.score == null
   ) {
-    return { data: oralHealthIndex, isReal: false }
+    return { data: emptySignedInIndex, isReal: false }
   }
 
   const capturedAt = comparison.to.capturedAt

@@ -156,21 +156,28 @@ export function ScoreGauge({
 
       <div className="flex flex-col items-center gap-xs">
         <div className="flex items-baseline gap-2xs">
-          <span className="text-h1-xl font-semibold text-foreground">{score}</span>
+          <span className="text-h1-xl font-semibold text-foreground">
+            {condition === 'No scan yet' ? '—' : score}
+          </span>
           <span className="text-body text-foreground-secondary">/{max}</span>
         </div>
         {/* text-surface (#FFFFFF) overrides the badge's AA-paired dark text as
-            requested. When pointsFromLastScan is 0 (first scan or steady score),
-            show "Steady" instead of "+0 points". */}
+            requested. */}
         <Badge tone="success" className="text-surface">
-          {pointsFromLastScan > 0
-            ? `+${pointsFromLastScan} points`
-            : pointsFromLastScan < 0
-              ? `${pointsFromLastScan} points`
-              : 'Steady'}
+          {condition === 'No scan yet'
+            ? 'No scan yet'
+            : pointsFromLastScan > 0
+              ? `+${pointsFromLastScan} points`
+              : pointsFromLastScan < 0
+                ? `${pointsFromLastScan} points`
+                : 'Steady'}
         </Badge>
         <span className="text-nav text-foreground-secondary">
-          {pointsFromLastScan === 0 ? 'this check' : 'from last scan'}
+          {condition === 'No scan yet'
+            ? 'take first scan'
+            : pointsFromLastScan === 0
+              ? 'this check'
+              : 'from last scan'}
         </span>
       </div>
     </div>
