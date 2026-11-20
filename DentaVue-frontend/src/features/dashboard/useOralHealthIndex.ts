@@ -39,33 +39,36 @@ function conditionLabel(score: number): string {
   return 'Poor condition'
 }
 
-const signed = (n: number): string => (n > 0 ? `+${n}` : String(n))
-
 /**
- * The three trend stats under the gauge. Sourced from real backend figures only:
- * the overall score delta and improving-area count come from the comparison, the
- * confidence is the latest analysis's. No client-side percentages are invented —
- * the backend deliberately does not expose per-parameter deltas as percentages
- * (severity is audit-only), so we show what it does compute.
+ * The three summary stats under the gauge: Healthy Areas, Needs Care, and Score Trend.
  */
 function buildStats(analysis: Analysis, comparison: Comparison): OralHealthIndex['stats'] {
-  const confidence = analysis.confidence ?? 0
+  const totalAreas = analysis.glance.length || analysis.parameters.length || 6
+  const watchAreas = analysis.glance.filter((g) => g.tone === 'watch')
+  const healthyCount = totalAreas - watchAreas.length
 
-  // Two-plus analysed scans: a real diff exists.
-  if (!comparison.single) {
-    const improving = comparison.metrics.filter((m) => m.tone === 'improving').length
-    return [
-      { label: 'Oral Health', value: signed(comparison.overall.points), note: 'since first scan' },
-      { label: 'Areas improving', value: String(improving), note: `of ${comparison.metrics.length} tracked` },
-      { label: 'Confidence', value: `${confidence}%`, note: 'this scan' },
-    ]
-  }
+  const needsCareValue =
+    watchAreas.length === 1 ? '1 area' : `${watchAreas.length} areas`
+  const needsCareNote =
+    watchAreas.length === 0
+      ? 'all clear!'
+      : watchAreas.length === 1
+        ? watchAreas[0]!.title.toLowerCase()
+        : 'to keep an eye on'
 
-  // Only one scan on record — it's the baseline, nothing to diff against yet.
+  const delta = analysis.pointsFromLastScan
+  const trendValue =
+    delta.direction === 'up' && delta.points > 0
+      ? `+${delta.points} pts`
+      : delta.direction === 'down' && delta.points > 0
+        ? `-${delta.points} pts`
+        : 'Steady'
+  const trendNote = comparison.single ? 'first check' : 'since last scan'
+
   return [
-    { label: 'Oral Health', value: String(analysis.score ?? 0), note: 'your baseline' },
-    { label: 'Areas tracked', value: String(analysis.parameters.length), note: 'this scan' },
-    { label: 'Confidence', value: `${confidence}%`, note: 'this scan' },
+    { label: 'Healthy Areas', value: `${healthyCount} of ${totalAreas}`, note: 'looking good' },
+    { label: 'Needs Care', value: needsCareValue, note: needsCareNote },
+    { label: 'Score Trend', value: trendValue, note: trendNote },
   ]
 }
 
@@ -100,13 +103,18 @@ export function useOralHealthIndex(): { data: OralHealthIndex; isReal: boolean }
 
   const capturedAt = comparison.to.capturedAt
 
+  const signedPoints =
+    analysis.pointsFromLastScan.direction === 'down'
+      ? -analysis.pointsFromLastScan.points
+      : analysis.pointsFromLastScan.direction === 'up'
+        ? analysis.pointsFromLastScan.points
+        : 0
+
   const data: OralHealthIndex = {
     score: analysis.score,
     max: 100,
     condition: conditionLabel(analysis.score),
-    // The gauge frames this as an improvement ("+N points"); the deadband bands
-    // tiny moves to 0, so a stable scan reads "+0".
-    pointsFromLastScan: analysis.pointsFromLastScan.points,
+    pointsFromLastScan: signedPoints,
     confidence: analysis.confidence ?? 0,
     // Absolute capture date ("Apr 8") rather than a relative "2 days ago": a
     // relative label needs `Date.now()` in render, which risks a hydration

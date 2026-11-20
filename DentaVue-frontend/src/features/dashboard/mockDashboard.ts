@@ -99,9 +99,9 @@ export const oralHealthIndex: OralHealthIndex = {
   lastScan: '2 days ago',
   nextScan: 'in 12 days',
   stats: [
-    { label: 'Oral Health', value: '+6', note: 'since last scan' },
-    { label: 'Plaque', value: '-14%', note: 'less buildup' },
-    { label: 'Confidence', value: '+16%', note: 'more accurate' },
+    { label: 'Healthy Areas', value: '5 of 6', note: 'looking good' },
+    { label: 'Needs Care', value: '1 area', note: 'tooth cleanliness' },
+    { label: 'Score Trend', value: '+4 pts', note: 'since last scan' },
   ],
 }
 
