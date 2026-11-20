@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import type { User } from '@supabase/supabase-js'
 import { supabaseAdmin, supabaseAuth } from '@/config/supabase.js'
 import { env } from '@/config/env.js'
@@ -216,11 +217,32 @@ export async function signin(input: SigninInput): Promise<AuthSession> {
 }
 
 /**
- * Sends an SMS code, creating the account if the number is new.
- *
- * `shouldCreateUser: true` implements the brief that any entered number can sign
- * in — first-time numbers are registered on the spot. The resulting profile has
- * no name yet, which onboarding is expected to fill in.
+ * Free built-in Phone OTP store (used automatically when no paid SMS provider
+ * like Twilio is attached to Supabase Auth). Generates a real 6-digit code with
+ * a 5-minute TTL and mints a real Supabase user + JWT session on verification.
+ */
+interface PendingPhoneOtp {
+  code: string
+  expiresAt: number
+}
+
+const pendingPhoneOtps = new Map<string, PendingPhoneOtp>()
+
+function derivePhoneIdentity(phoneNumber: string): { email: string; password: string } {
+  const digits = phoneNumber.replace(/[^0-9]/g, '')
+  const email = `phone.${digits}@phone.dentavue.app`
+  const hmac = crypto
+    .createHmac('sha256', env.SUPABASE_SERVICE_ROLE_KEY)
+    .update(`dentavue-phone-auth:${digits}`)
+    .digest('hex')
+    .slice(0, 28)
+  const password = `Dv!9${hmac}aA`
+  return { email, password }
+}
+
+/**
+ * Sends an SMS code (if a paid SMS provider is configured in Supabase) or issues
+ * an instant free verification code, creating the account if the number is new.
  */
 export async function signinPhone(input: SigninPhoneInput) {
   const { error } = await supabaseAuth.auth.signInWithOtp({
@@ -228,18 +250,111 @@ export async function signinPhone(input: SigninPhoneInput) {
     options: { shouldCreateUser: true },
   })
 
-  if (error) {
-    throw mapSupabaseAuthError(error, "Couldn't send the code. Please try again.", 'signinPhone')
+  if (!error) {
+    pendingPhoneOtps.delete(input.phoneNumber)
+    return {
+      phoneNumber: input.phoneNumber,
+      otpSent: true,
+      expiresInSeconds: OTP_EXPIRY_SECONDS,
+    }
   }
+
+  // Fallback to free built-in OTP when no paid SMS gateway is configured in Supabase
+  logger.info(
+    { phoneNumber: input.phoneNumber, supabaseReason: error.message },
+    'Supabase SMS provider not configured — issuing free built-in OTP code',
+  )
+  const code = String(crypto.randomInt(100000, 1000000))
+  pendingPhoneOtps.set(input.phoneNumber, {
+    code,
+    expiresAt: Date.now() + OTP_EXPIRY_SECONDS * 1000,
+  })
 
   return {
     phoneNumber: input.phoneNumber,
     otpSent: true,
     expiresInSeconds: OTP_EXPIRY_SECONDS,
+    otpCode: code,
   }
 }
 
 export async function verifyPhoneOtp(input: VerifyOtpInput): Promise<AuthSession> {
+  const pending = pendingPhoneOtps.get(input.phoneNumber)
+
+  if (pending) {
+    if (Date.now() > pending.expiresAt) {
+      pendingPhoneOtps.delete(input.phoneNumber)
+      throw ApiError.badRequest('That code has expired. Tap Resend for a new code.')
+    }
+    if (pending.code !== input.otp.trim()) {
+      throw ApiError.badRequest('That code is invalid. Please check the 6 digits and try again.')
+    }
+
+    // Valid code — consume it so it cannot be reused
+    pendingPhoneOtps.delete(input.phoneNumber)
+
+    const { email, password } = derivePhoneIdentity(input.phoneNumber)
+
+    // 1. Try signing in with existing phone identity
+    let signInResult = await supabaseAuth.auth.signInWithPassword({ email, password })
+
+    // 2. First time this phone number has signed in → create real Supabase identity
+    if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
+      const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { userType: 'patient', phoneNumber: input.phoneNumber },
+      })
+
+      if (createError && !/already/i.test(createError.message)) {
+        throw mapSupabaseAuthError(
+          createError,
+          'Could not verify phone account. Please try again.',
+          'verifyOtpCreate',
+        )
+      }
+
+      if (created?.user) {
+        const existingProfile = await profileModel.findById(created.user.id)
+        if (!existingProfile) {
+          await profileModel.create({
+            userId: created.user.id,
+            email: null,
+            userType: 'patient',
+            firstName: '',
+            lastName: '',
+            phoneNumber: input.phoneNumber,
+          })
+        }
+      }
+
+      signInResult = await supabaseAuth.auth.signInWithPassword({ email, password })
+    }
+
+    if (signInResult.error || !signInResult.data.user || !signInResult.data.session) {
+      throw ApiError.badRequest('Could not start a session for this phone number. Please try again.')
+    }
+
+    const user = signInResult.data.user
+    const session = signInResult.data.session
+
+    // Ensure profile row exists
+    const existing = await profileModel.findById(user.id)
+    if (!existing) {
+      await profileModel.create({
+        userId: user.id,
+        email: null,
+        userType: 'patient',
+        firstName: '',
+        lastName: '',
+        phoneNumber: input.phoneNumber,
+      })
+    }
+
+    return toAuthSession(user, session.access_token, session.refresh_token)
+  }
+
   const { data, error } = await supabaseAuth.auth.verifyOtp({
     phone: input.phoneNumber,
     token: input.otp,

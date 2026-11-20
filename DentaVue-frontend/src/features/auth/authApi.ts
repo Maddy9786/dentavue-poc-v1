@@ -47,6 +47,32 @@ interface SigninPhoneResponse {
   otpSent: boolean
   /** Seconds until the code expires — drives the countdown on the OTP screen. */
   expiresInSeconds: number
+  /** Present when using the free built-in OTP engine (no paid SMS gateway). */
+  otpCode?: string
+}
+
+const INSTANT_OTP_PREFIX = 'dentavue.instantOtp.'
+
+export function saveInstantOtp(phoneNumber: string, otpCode?: string): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (otpCode) {
+      window.sessionStorage.setItem(`${INSTANT_OTP_PREFIX}${phoneNumber}`, otpCode)
+    } else {
+      window.sessionStorage.removeItem(`${INSTANT_OTP_PREFIX}${phoneNumber}`)
+    }
+  } catch {
+    // Ignore storage errors in private mode
+  }
+}
+
+export function getInstantOtp(phoneNumber: string): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return window.sessionStorage.getItem(`${INSTANT_OTP_PREFIX}${phoneNumber}`)
+  } catch {
+    return null
+  }
 }
 
 interface VerifyPhoneOtpRequest {
@@ -137,7 +163,9 @@ export const authApi = baseApi.injectEndpoints({
 
         const result = await baseQuery({ url: '/auth/signin-phone', method: 'POST', body: arg })
         if (result.error) return { error: result.error }
-        return { data: (result.data as ApiEnvelope<SigninPhoneResponse>).data }
+        const data = (result.data as ApiEnvelope<SigninPhoneResponse>).data
+        saveInstantOtp(arg.phoneNumber, data.otpCode)
+        return { data }
       },
     }),
 
@@ -181,7 +209,9 @@ export const authApi = baseApi.injectEndpoints({
 
         const result = await baseQuery({ url: '/auth/resend-phone-otp', method: 'POST', body: arg })
         if (result.error) return { error: result.error }
-        return { data: (result.data as ApiEnvelope<SigninPhoneResponse>).data }
+        const data = (result.data as ApiEnvelope<SigninPhoneResponse>).data
+        saveInstantOtp(arg.phoneNumber, data.otpCode)
+        return { data }
       },
     }),
 

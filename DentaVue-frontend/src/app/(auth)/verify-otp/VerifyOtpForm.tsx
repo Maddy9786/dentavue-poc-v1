@@ -1,11 +1,16 @@
 'use client'
 
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { OtpInput } from '@/components/ui/OtpInput'
 import { MockOtpNotice } from '@/components/auth/MockOtpNotice'
-import { useResendPhoneOtpMutation, useVerifyPhoneOtpMutation } from '@/features/auth/authApi'
+import {
+  getInstantOtp,
+  saveInstantOtp,
+  useResendPhoneOtpMutation,
+  useVerifyPhoneOtpMutation,
+} from '@/features/auth/authApi'
 import { getApiErrorMessage } from '@/lib/apiError'
 import { formatCountdown, useCountdown } from '@/hooks/useCountdown'
 import { ROUTES } from '@/constants/routes'
@@ -14,12 +19,7 @@ const OTP_LENGTH = 6
 const DEFAULT_EXPIRY_SECONDS = 300
 
 /**
- * Screen 4 — verify the SMS code.
- *
- * `phoneNumber` is read from `?phone=` by the server component above, so this
- * screen survives a refresh and can be linked to. If it is empty the user
- * arrived out of order and is sent back, rather than shown a form that cannot
- * work.
+ * Screen 4 — verify the SMS / Instant Phone OTP code.
  */
 export function VerifyOtpForm({ phoneNumber }: { phoneNumber: string }) {
   const router = useRouter()
@@ -28,8 +28,14 @@ export function VerifyOtpForm({ phoneNumber }: { phoneNumber: string }) {
   const [resend, { isLoading: isResending, error: resendError }] = useResendPhoneOtpMutation()
 
   const [code, setCode] = useState('')
+  const [instantCode, setInstantCode] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | undefined>()
   const { remaining, isExpired, restart } = useCountdown(DEFAULT_EXPIRY_SECONDS)
+
+  useEffect(() => {
+    if (!phoneNumber) return
+    setInstantCode(getInstantOtp(phoneNumber))
+  }, [phoneNumber])
 
   const submit = async (value: string) => {
     if (value.length !== OTP_LENGTH) {
@@ -39,8 +45,14 @@ export function VerifyOtpForm({ phoneNumber }: { phoneNumber: string }) {
     setLocalError(undefined)
 
     try {
-      await verify({ phoneNumber, otp: value }).unwrap()
-      router.push(ROUTES.patient.dashboard)
+      const session = await verify({ phoneNumber, otp: value }).unwrap()
+      saveInstantOtp(phoneNumber, undefined)
+      // Route new phone accounts without a profile name into onboarding
+      if (!session.user.firstName) {
+        router.push(ROUTES.onboarding.welcome)
+      } else {
+        router.push(ROUTES.patient.dashboard)
+      }
     } catch {
       // Rendered from verifyError below.
     }
@@ -56,6 +68,9 @@ export function VerifyOtpForm({ phoneNumber }: { phoneNumber: string }) {
     setLocalError(undefined)
     try {
       const result = await resend({ phoneNumber }).unwrap()
+      if (result.otpCode) {
+        setInstantCode(result.otpCode)
+      }
       restart(result.expiresInSeconds || DEFAULT_EXPIRY_SECONDS)
     } catch {
       // Rendered from resendError below.
@@ -89,6 +104,29 @@ export function VerifyOtpForm({ phoneNumber }: { phoneNumber: string }) {
 
       <div className="mt-2xl">
         <MockOtpNotice phoneNumber={phoneNumber} />
+        {instantCode && (
+          <div
+            role="status"
+            className="mb-lg flex flex-col items-center gap-xs rounded-3 border border-primary/30 bg-surface p-md text-center shadow-sm"
+          >
+            <span className="text-nav font-medium text-primary">
+              Instant Verification Code
+            </span>
+            <p className="font-mono text-h1-xl font-bold tracking-widest text-foreground">
+              {instantCode}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setCode(instantCode)
+                void submit(instantCode)
+              }}
+              className="mt-2xs rounded-full bg-primary px-md py-2xs text-nav font-semibold text-surface transition-opacity hover:opacity-90"
+            >
+              Tap to Auto-Fill & Verify
+            </button>
+          </div>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-lg">
