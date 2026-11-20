@@ -30,7 +30,7 @@ import { ApiError } from '@/utils/ApiError.js'
 const API_ROOT = 'https://generativelanguage.googleapis.com/v1beta'
 
 /** Bump when the prompts or the response schema change — stored per analysis. */
-export const PROMPT_VERSION = '1.2.0'
+export const PROMPT_VERSION = '1.3.0'
 
 /** Subset of Gemini's OpenAPI-flavoured schema dialect that we emit. */
 export interface ResponseSchema {

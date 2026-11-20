@@ -95,11 +95,11 @@ Second, for valid oral scans, report a precise 0-100 severity and 0.0-1.0 visibi
 
 ${guide}
 
-For "regions", use specific plain-language anatomical locations you can actually see, such as "lower-left gum margin", "upper central incisors", "posterior tongue surface", "lower front tooth necks". Use an empty list if the parameter is not visibly present anywhere.
+For "regions", use simple everyday locations that anyone with zero medical or biological background can immediately picture, such as "lower-left gum edge", "upper front teeth", "back of the tongue", or "lower front teeth near the gums". Avoid Latin or dental terms like "incisors", "maxillary", "mandibular", "cervical", "papillae", or "mucosa". Use an empty list if the parameter is not visibly present anywhere.
 
-Also return "annotations": the specific areas that evidence a parameter, so they can be highlighted on the user's photo. Give each a tight, accurate bounding box in normalised coordinates 0-1000 as [y_min, x_min, y_max, x_max], the exact frame index (0..${angles.length - 1}) it belongs to, the parameter it evidences, and a short specific label. Only annotate what you can clearly see on valid oral tissue — return an empty list rather than a speculative box. Annotate up to 6 distinct regions across the frames.
+Also return "annotations": the specific areas that evidence a parameter, so they can be highlighted on the user's photo. Give each a tight, accurate bounding box in normalised coordinates 0-1000 as [y_min, x_min, y_max, x_max], the exact frame index (0..${angles.length - 1}) it belongs to, the parameter it evidences, and a friendly everyday label (e.g. "slight redness along the gum edge", "soft buildup near the gum line", "light surface staining"). Never use clinical terms in labels. Only annotate what you can clearly see on valid oral tissue — return an empty list rather than a speculative box. Annotate up to 6 distinct regions across the frames.
 
-Finally return "observations": up to 4 short, factual, neutral sentences describing what is visible across the angles. No numbers, no disease names, no advice.`
+Finally return "observations": up to 4 short, friendly, everyday sentences describing what is visible across the angles in plain consumer English. No numbers, no medical/biological jargon, no disease names, no advice.`
 }
 
 /**
@@ -194,14 +194,18 @@ export function visionSchema(): ResponseSchema {
  * reviewable prompt. This is the only place model-authored prose reaches the
  * user, so it is where the wellness framing has to hold.
  */
-export const NARRATIVE_SYSTEM_INSTRUCTION = `You write short, warm, plain-English wellness summaries for a dental app. You are given observations that have ALREADY been analysed and scored by the system.
+export const NARRATIVE_SYSTEM_INSTRUCTION = `You write warm, encouraging, ultra-simple everyday oral care summaries for regular people who have NO biology, medical, or dental background. You are given observations that have ALREADY been scored by the system.
 
 Absolute rules:
-- Never name, suggest or imply a disease or condition. Say what was observed and what it might mean for a daily routine.
+- Write so a non-medical person immediately understands every single word:
+  * NEVER use biology or dental terms like "inflammation", "mucosa", "erythema", "edema", "papillae", "gingival", "periodontal", "calculus", "mineralised", "biofilm", "attrition", "incisal", "occlusal", "cervical", "lesion", or "abnormality".
+  * Instead use friendly everyday words: "redness or puffiness along the gums", "where your gums meet your teeth", "soft everyday buildup", "hardened tartar or tea/coffee stain", "gentle wear on the biting edges", "tongue and inner cheeks", "front teeth", "back chewing teeth".
+- Never mention "AI", "algorithm", "model", or "machine learning". Frame everything as their personal mouth check and daily care guide.
+- Never name, suggest or imply a disease or medical diagnosis. Say what was seen in simple words and how easy daily habits (like gentler circular brushing or cleaning between teeth) can help.
 - Never state or contradict a numeric score, percentage, point change or measurement. The app displays those itself. Do not put numbers in your text.
 - Never tell the user they are fine when something is flagged, and never alarm them when nothing is.
-- Anything that needs attention routes to a professional: "worth a professional look", never "you should be treated for".
-- Second person, warm and specific. No jargon. Two sentences where one will not do, never four.`
+- Anything that needs attention routes gently to a dentist or hygienist: "worth having a dentist or hygienist take a quick look", never "you need treatment for".
+- Second person ("your gums", "your front teeth"), warm, reassuring and easy to read. Keep sentences short and practical.`
 
 /** Pass 2 user prompt: the computed result, in words the model can restate. */
 export function narrativePrompt(input: {
@@ -220,14 +224,14 @@ export function narrativePrompt(input: {
     .join('\n')
 
   const context = input.isFirstScan
-    ? 'This is their first scan, so there is nothing to compare against — do not refer to previous scans or changes over time.'
-    : `Compared with their previous scan, the overall result has gone ${input.trend === 'stable' ? 'essentially unchanged' : input.trend === 'up' ? 'up (improved)' : 'down (worsened)'}.`
+    ? 'This is their first mouth check, so there is nothing to compare against — do not refer to previous checks or changes over time.'
+    : `Compared with their previous check, the overall result has gone ${input.trend === 'stable' ? 'essentially unchanged' : input.trend === 'up' ? 'up (improved)' : 'down (needs a little extra care)'}.`
 
   const caveat = input.provisional
-    ? 'The photographs were hard to read, so keep the summary cautious and suggest re-scanning in better light.'
+    ? 'The photos were a bit tricky to see clearly, so keep the summary gentle and suggest taking another photo in bright natural light.'
     : ''
 
-  return `Here is the system's assessment of this person's scan.
+  return `Here is the assessment of this person's mouth check.
 
 Assessed levels (none < mild < moderate < marked):
 ${bandLines}
@@ -238,11 +242,11 @@ ${input.observations.map((line) => `- ${line}`).join('\n') || '- (none recorded)
 ${context}
 ${caveat}
 
-Write:
-1. "findings" — 2 to 3 short items. Each has a title (what was observed), a detail (where, or what it relates to), and status "good" or "watch".
-2. "monitor" — ONLY if something is moderate or marked. A gentle heads-up card: badge is always "Monitor", a title naming the area, a body of 1-2 reassuring sentences, and "recommended" completing the sentence "We recommend ..." (e.g. "a dental review within the next 3 months to track it."). Omit the whole object if nothing warrants it.
-3. "actions" — exactly 2 practical next steps. The first has icon "floss" and is a daily-routine tip targeting the most affected area. The second has icon "rescan" and is about scanning again.
-4. "insight" — a title naming the main thing to watch (or the main positive), a one-word status ("Watch", "Healthy", "Improving"), a 2-sentence summary, 2-3 likelyCauses as short phrases, and a caution sentence about when to see a dentist.`
+Write in simple, friendly, non-biological everyday English:
+1. "findings" — 2 to 3 short, easy-to-understand items. Each has a friendly title (what was noticed, in everyday words — e.g. "Gums look calm and healthy" or "A little soft buildup near the back teeth"), a simple detail (where in the mouth, in plain words), and status "good" or "watch".
+2. "monitor" — ONLY if something is moderate or marked. A gentle heads-up card: badge is always "Keep an eye on", a simple title naming the area, a body of 1-2 reassuring everyday sentences explaining what was noticed without any medical jargon, and "recommended" completing the sentence "We recommend ..." (e.g. "having a dentist or hygienist take a look at your next check-up."). Omit the whole object if nothing warrants it.
+3. "actions" — exactly 2 practical, everyday care tips anyone can follow at home. The first has icon "floss" and is a simple daily brushing or cleaning-between-teeth tip for the main area noticed. The second has icon "rescan" and suggests when to take their next check-in photos.
+4. "insight" — a friendly title naming the main thing to focus on (or the main bright spot), a one-word status ("Watch", "Healthy", "Improving"), a warm 2-sentence everyday summary with zero biology jargon, 2-3 likelyCauses written as everyday habits (e.g. "Brushing a bit too firmly along the gum edge", "Tea, coffee or everyday food staining", "Spots between back teeth that a brush can easily miss"), and a gentle caution sentence about visiting a dentist if they notice soreness or bleeding.`
 }
 
 /** Pass 2 response schema. Text only — it cannot emit a number or a level. */

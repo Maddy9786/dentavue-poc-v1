@@ -109,7 +109,7 @@ export const healthMetrics: HealthMetric[] = [
   {
     id: 'gum-lower',
     title: 'Gum health',
-    description: 'Inflammation easing along the lower line.',
+    description: 'Redness is settling nicely along your lower gums.',
     status: 'Improving',
     tone: 'positive',
     trend: '5%',
@@ -117,7 +117,7 @@ export const healthMetrics: HealthMetric[] = [
   {
     id: 'enamel',
     title: 'Enamel',
-    description: 'Strong overall · light wear on front edges.',
+    description: 'Tooth surfaces look strong · gentle wear on front edges.',
     status: 'Healthy',
     tone: 'positive',
     trend: 'stable',
@@ -125,7 +125,7 @@ export const healthMetrics: HealthMetric[] = [
   {
     id: 'oral-tissue',
     title: 'Oral tissue',
-    description: 'No new abnormalities observed.',
+    description: 'Tongue and inner cheeks look clear and healthy.',
     status: 'Normal',
     tone: 'positive',
     trend: 'stable',
@@ -133,7 +133,7 @@ export const healthMetrics: HealthMetric[] = [
   {
     id: 'plaque-risk',
     title: 'Plaque risk',
-    description: 'Slight buildup near upper molars.',
+    description: 'A little soft buildup near your upper back teeth.',
     status: 'Watch',
     tone: 'watch',
     trend: 'stable',
@@ -141,7 +141,7 @@ export const healthMetrics: HealthMetric[] = [
   {
     id: 'gum-line',
     title: 'Gum line',
-    description: 'Margins sitting even and full.',
+    description: 'Gums are sitting evenly around your teeth.',
     status: 'Healthy',
     tone: 'positive',
     trend: 'stable',
@@ -149,7 +149,7 @@ export const healthMetrics: HealthMetric[] = [
   {
     id: 'tartar-stain',
     title: 'Tartar & stain',
-    description: 'No visible tartar or surface stain.',
+    description: 'No hardened tartar or surface staining seen.',
     status: 'Healthy',
     tone: 'positive',
     trend: 'stable',
@@ -158,13 +158,13 @@ export const healthMetrics: HealthMetric[] = [
 
 export const aiInsight: AiInsight = {
   updated: '2 days ago',
-  body: 'Your gum health dipped slightly near the lower-left molars. This often follows changes in brushing pressure — a softer technique should reverse it within two weeks.',
+  body: 'Your gums look slightly red near your lower-left back teeth. This usually happens from brushing a little too firmly — switching to gentle circular strokes should help it settle within two weeks.',
   fullBody: [
-    'Your gum health dipped slightly near the lower-left molars. This often follows changes in brushing pressure — a softer technique should reverse it within two weeks.',
-    'Compared with your previous scan, plaque along the upper gum line has reduced by roughly 14%, which suggests your current routine is working well in that area. Keep it up.',
-    'The lower-left region shows mild redness consistent with early irritation, not decay. Angling the brush at 45 degrees toward the gum and easing off the pressure tends to settle this quickly.',
-    'Overall tissue looks stable, with no new areas of concern since your last check. Your next scan is scheduled in 12 days, which is a good point to confirm the lower-left area has recovered.',
-    'This summary is a wellness overview generated from your uploaded images and is not a diagnosis. For any pain, bleeding, or a change that does not settle, book a visit with a dentist.',
+    'Your gums look slightly red near your lower-left back teeth. This usually happens from brushing a little too firmly — switching to gentle circular strokes should help it settle within two weeks.',
+    'Compared with your previous check, everyday buildup along your upper gum line is noticeably cleaner, which shows your daily routine is working well there. Keep it up.',
+    'The lower-left gum edge shows mild surface redness from everyday irritation. Angling a soft brush gently toward where the gum meets the tooth helps calm this down quickly.',
+    'Your tongue and inner cheeks look healthy and clear, with no new changes since your last check. Your next scan in 12 days is a great time to see the lower-left area bounce back.',
+    'This guide is an everyday oral care summary from your photos and is not a medical diagnosis. If you ever feel pain, soreness, or bleeding that does not settle, book a visit with a dentist.',
   ],
 }
 
@@ -202,39 +202,39 @@ export interface AiInsightDetail {
 }
 
 export const aiInsightDetail: AiInsightDetail = {
-  title: 'Gum health dip · lower-left',
+  title: 'Gums need a little gentle care · lower-left',
   updated: '2 days ago',
   confidence: 92,
   status: 'Watch',
   summary:
-    'Your gum health dipped slightly near the lower-left molars. This often follows changes in brushing pressure — a softer technique should reverse it within two weeks.',
+    'Your gums look slightly red near your lower-left back teeth. This usually happens from brushing a little too firmly — switching to gentle circular strokes should help it settle within two weeks.',
   likelyCauses: [
-    'Brushing too hard along the gum line',
-    'Missed flossing between the back molars',
-    'New toothbrush with firmer bristles',
+    'Brushing a bit too firmly along the gum edge',
+    'Food or soft buildup sitting between the back teeth',
+    'Using a toothbrush with medium or hard bristles',
   ],
   whatToDo: [
     {
       id: 'strokes',
-      title: 'Switch to soft, circular strokes',
-      detail: '45° angle to the gum line',
+      title: 'Use gentle, circular brushing strokes',
+      detail: 'Angle a soft brush lightly toward the gum edge',
       done: true,
     },
     {
       id: 'floss',
-      title: 'Floss the lower-left daily this fortnight',
-      detail: 'Focus between the last two molars',
+      title: 'Clean between your lower-left back teeth daily',
+      detail: 'Gently clear out trapped food before bedtime',
       done: true,
     },
     {
       id: 'rescan',
-      title: 'Re-scan in 2 weeks',
-      detail: 'Expected recovery: back to 72+ by 22 Apr',
+      title: 'Take a quick check-in scan in 2 weeks',
+      detail: 'See how nicely the redness has settled down',
       done: false,
     },
   ],
-  caution: 'If it worsens or you notice bleeding, we’ll recommend a periodontist.',
-  ctaLabel: 'Set a re-scan reminder',
+  caution: 'If the area feels sore or bleeds when you brush, book a quick visit with a dentist.',
+  ctaLabel: 'Set a check-in reminder',
 }
 
 /** One row of the compare screen's "What you'll see" list. */
@@ -474,12 +474,12 @@ export const analysingScan: {
   description: string
   steps: { id: string; label: string; doneAt: number }[]
 } = {
-  title: 'Analysing your scan',
-  description: 'DentaVue is reading 1,200+ data points across teeth, gums and soft tissue.',
+  title: 'Reviewing your mouth photos',
+  description: 'DentaVue is checking your teeth, gums and tongue across 6 everyday care areas.',
   steps: [
-    { id: 'quality', label: 'Image quality verified', doneAt: 0 },
-    { id: 'gum-recession', label: 'Detecting gum recession', doneAt: 50 },
-    { id: 'report', label: 'Generating your report…', doneAt: 100 },
+    { id: 'quality', label: 'Photo clarity verified', doneAt: 0 },
+    { id: 'gum-recession', label: 'Checking gums & tooth surfaces', doneAt: 50 },
+    { id: 'report', label: 'Preparing your personal care guide…', doneAt: 100 },
   ],
 }
 
@@ -508,49 +508,49 @@ export const riskAssessment: {
   ctaLabel: string
   items: RiskItem[]
 } = {
-  completeTitle: 'Analysis complete',
+  completeTitle: 'Your mouth check is ready',
   completeSubtitle: 'Across 6 areas tracked this cycle',
   ctaLabel: 'View full results',
   items: [
     {
       id: 'oral-tissue',
       title: 'Oral tissue',
-      detail: 'Tongue, palate, cheeks - all clear',
+      detail: 'Tongue, roof of mouth & inner cheeks - all clear',
       level: 'Low',
       tone: 'good',
     },
     {
       id: 'gum-inflammation',
-      title: 'Gum inflammation',
-      detail: 'Lower-left margin - easing',
+      title: 'Gum comfort & colour',
+      detail: 'Lower-left gum edge - settling nicely',
       level: 'Low',
       tone: 'good',
     },
     {
       id: 'plaque-buildup',
-      title: 'Plaque buildup',
-      detail: 'Upper-right molars - watch',
+      title: 'Daily plaque buildup',
+      detail: 'Upper-right back teeth - give extra brush time',
       level: 'Medium',
       tone: 'good',
     },
     {
       id: 'gum-line-change',
-      title: 'Gum line change',
-      detail: 'Possible early recession',
+      title: 'Gum line position',
+      detail: 'Gum edge sits slightly lower on a few teeth',
       level: 'Attention',
       tone: 'attention',
     },
     {
       id: 'enamel-wear',
-      title: 'Enamel condition',
-      detail: 'Surface and biting-edge wear',
+      title: 'Tooth surface & edges',
+      detail: 'Smoothness and biting-edge wear',
       level: 'Low',
       tone: 'good',
     },
     {
       id: 'tartar-stain',
-      title: 'Tartar & staining',
-      detail: 'Mineralised deposits and surface stain',
+      title: 'Tartar & surface stain',
+      detail: 'Hardened buildup or tea & coffee staining',
       level: 'Low',
       tone: 'good',
     },
@@ -621,7 +621,7 @@ export const scanResults: {
       id: 'gum-health',
       icon: 'gum',
       title: 'Gum health',
-      description: 'Inflammation easing along the lower line.',
+      description: 'Redness is settling nicely along your lower gums.',
       status: 'Improving',
       tone: 'positive',
       trend: '5%',
@@ -630,7 +630,7 @@ export const scanResults: {
       id: 'enamel',
       icon: 'enamel',
       title: 'Enamel',
-      description: 'Strong overall · light wear on front edges.',
+      description: 'Tooth surfaces look strong · gentle wear on front edges.',
       status: 'Healthy',
       tone: 'positive',
       trend: 'stable',
@@ -639,7 +639,7 @@ export const scanResults: {
       id: 'oral-tissue',
       icon: 'tissue',
       title: 'Oral tissue',
-      description: 'No new abnormalities observed.',
+      description: 'Tongue and inner cheeks look clear and healthy.',
       status: 'Normal',
       tone: 'positive',
       trend: 'stable',
@@ -648,7 +648,7 @@ export const scanResults: {
       id: 'plaque-risk',
       icon: 'plaque',
       title: 'Plaque risk',
-      description: 'Slight buildup near upper molars.',
+      description: 'A little soft buildup near your upper back teeth.',
       status: 'Watch',
       tone: 'watch',
       trend: 'stable',
@@ -657,7 +657,7 @@ export const scanResults: {
       id: 'gum-line',
       icon: 'gum',
       title: 'Gum line',
-      description: 'Margins sitting even and full.',
+      description: 'Gums are sitting evenly around your teeth.',
       status: 'Healthy',
       tone: 'positive',
       trend: 'stable',
@@ -666,7 +666,7 @@ export const scanResults: {
       id: 'tartar-stain',
       icon: 'plaque',
       title: 'Tartar & stain',
-      description: 'No visible tartar or surface stain.',
+      description: 'No hardened tartar or surface staining seen.',
       status: 'Healthy',
       tone: 'positive',
       trend: 'stable',
@@ -676,41 +676,41 @@ export const scanResults: {
   findings: [
     {
       id: 'gum-inflammation',
-      title: 'Reduced gum inflammation detected',
-      detail: 'Lower-left margin, vs. your last scan',
+      title: 'Gums look calmer and less red',
+      detail: 'Lower-left gum edge compared with your last check',
       status: 'good',
     },
     {
       id: 'tissue',
-      title: 'No new tissue abnormalities observed',
-      detail: 'Tongue, palate and cheeks all clear',
+      title: 'Tongue and inner cheeks look clear',
+      detail: 'Healthy everyday colour with no spots noticed',
       status: 'good',
     },
     {
       id: 'plaque',
-      title: 'Plaque accumulation remains stable',
-      detail: 'Keep an eye on upper-right molars',
+      title: 'A little soft buildup on the back teeth',
+      detail: 'Give your upper-right back teeth a few extra seconds when brushing',
       status: 'watch',
     },
   ],
   monitor: {
-    badge: 'Monitor',
-    title: 'Possible early gum recession',
-    body: "We've noticed a small change along your upper gum line over the last 6 weeks. It's mild — worth a professional look, not a cause for worry.",
-    recommended: 'a dental review within the next 3 months to track it.',
+    badge: 'Keep an eye on',
+    title: 'Gum edge sitting slightly lower',
+    body: "We noticed the gum line looks a tiny bit lower on a couple of upper teeth. It's very common and often linked to firm brushing — worth mentioning at your next routine check-up.",
+    recommended: 'having a dentist or hygienist take a quick look at your next visit.',
   },
   actions: [
     {
       id: 'floss',
       icon: 'floss',
-      title: 'Floss the upper-right daily',
-      detail: 'Targets buildup near molars',
+      title: 'Clean between your upper-right teeth daily',
+      detail: 'Clears soft buildup around the back chewing teeth',
     },
     {
       id: 'rescan',
       icon: 'rescan',
-      title: 'Re-scan in 2 weeks',
-      detail: "We'll track the gum line for you",
+      title: 'Take a check-in scan in 2 weeks',
+      detail: "We'll help you track how your gums are settling",
     },
   ],
 }

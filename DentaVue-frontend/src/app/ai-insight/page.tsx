@@ -4,21 +4,11 @@ import { AiInsightContent } from '@/components/insight/AiInsightContent'
 import { ROUTES } from '@/constants/routes'
 
 export const metadata: Metadata = {
-  title: 'AI Insight',
+  title: 'Personal Care Guide',
 }
 
 /**
- * The full AI-insight write-up, reached from "See full analysis" on Home (a
- * signed-in user only — the Home button routes here; a signed-out tap gets the
- * sign-in nudge instead).
- *
- * A thin server shell: it owns the metadata and the header, and defers the body
- * to AiInsightContent, a client island that reads the real analysis (pass 2's
- * prose) and falls back to placeholder copy when there isn't one. Route-protected
- * by this segment's layout.
- *
- * Layout mirrors Home: the 375px mobile frame as the base, widening modestly on
- * desktop. The copy is wellness framing, not a diagnosis, per the project scope.
+ * The full Personal Care Guide write-up, reached from "See full care guide" on Home.
  */
 export default function AiInsightPage() {
   return (
@@ -30,7 +20,7 @@ export default function AiInsightPage() {
           <div className="absolute left-0">
             <BackButton fallbackHref={ROUTES.home} />
           </div>
-          <h1 className="text-h1 font-semibold text-foreground">AI insight</h1>
+          <h1 className="text-h1 font-semibold text-foreground">Personal care guide</h1>
         </header>
 
         <AiInsightContent />

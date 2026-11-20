@@ -16,8 +16,8 @@ export interface IntroFeature {
 export const introFeatures: IntroFeature[] = [
   {
     id: 'ai',
-    title: 'AI detects early changes',
-    description: 'Spots subtle shifts in gums, enamel and tissue before you can feel them.',
+    title: 'Smart scan spots early changes',
+    description: 'Notices subtle everyday changes in your gums, teeth and tongue before you feel them.',
   },
   {
     id: 'track',

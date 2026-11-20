@@ -50,19 +50,19 @@ export function QualityCheckReview({
 
   const summaryTitle =
     goodCount === 0
-      ? 'Retake needed before analysis'
+      ? 'Retake needed before review'
       : `${goodCount} of ${items.length} look great`
 
   const summaryNote =
     flaggedCount === 0
-      ? 'All 4 mouth angles look clear and properly aligned. You’re ready for analysis.'
+      ? 'All 4 mouth angles look clear and properly aligned. You’re ready for your mouth check.'
       : allInvalidOral
         ? 'We couldn’t detect a close-up of your teeth or gums in these photos. Please align your mouth inside the dashed guide and retake.'
         : noMouthCount > 0
           ? `${noMouthCount} photo${noMouthCount > 1 ? 's' : ''} didn’t clearly show your mouth inside the guide frame. Retake ${flaggedCount > 1 ? 'flagged photos' : 'it'} for accurate results.`
           : flaggedCount === 1
-            ? `One photo looks ${flaggedItems[0]?.flag?.toLowerCase() ?? 'unclear'}. Retake it for the most accurate analysis.`
-            : `${flaggedCount} photos need another look (${flaggedItems.map((f) => f.flag).filter(Boolean).join(', ')}). Retake them for the best analysis.`
+            ? `One photo looks ${flaggedItems[0]?.flag?.toLowerCase() ?? 'unclear'}. Retake it for the clearest results.`
+            : `${flaggedCount} photos need another look (${flaggedItems.map((f) => f.flag).filter(Boolean).join(', ')}). Retake them for the best results.`
 
   return (
     <main className="flex min-h-dvh flex-col bg-background">
@@ -140,13 +140,13 @@ export function QualityCheckReview({
                   className="border border-border text-foreground-secondary shadow-none"
                   onClick={onAnalyse}
                 >
-                  Analyse anyway ({goodCount} clear photo{goodCount === 1 ? '' : 's'})
+                  Continue anyway ({goodCount} clear photo{goodCount === 1 ? '' : 's'})
                 </Button>
               )}
             </>
           ) : (
             <Button variant="primary" className="text-surface" onClick={onAnalyse}>
-              Analyse Scan
+              Get My Mouth Report
             </Button>
           )}
         </div>
