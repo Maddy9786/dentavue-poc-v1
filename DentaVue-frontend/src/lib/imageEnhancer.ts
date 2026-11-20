@@ -181,3 +181,4 @@ export function enhanceIntraoralDataUrl(
     img.src = dataUrl
   })
 }
+
