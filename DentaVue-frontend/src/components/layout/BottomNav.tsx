@@ -7,7 +7,7 @@ import { ROUTES } from '@/constants/routes'
 import { Modal } from '@/components/ui/Modal'
 import { Button } from '@/components/ui/Button'
 import { useAppSelector } from '@/store/hooks'
-import { selectIsAuthenticated } from '@/features/auth/authSlice'
+import { selectCurrentUser, selectIsAuthenticated } from '@/features/auth/authSlice'
 import { useLogoutMutation } from '@/features/auth/authApi'
 import MenuIcon from '@/icons/Menu.svg'
 import ProfileIcon from '@/icons/profile.svg'
@@ -16,32 +16,38 @@ import InsightIcon from '@/icons/insight.svg'
 import UserIcon from '@/icons/user.svg'
 
 /**
- * Fixed bottom tab bar for the patient app.
- *
- * Five slots: Home (a link to the current page), Profile and Insights (features
- * not built — each opens a "coming soon" popup), Scan (the raised centre tile —
- * opens the guided-scan flow, which then leads to the camera), and Account
- * (opens sign-in / sign-up when signed out, or sign-out when signed in).
- *
- * Home's icon uses currentColor so it can tint primary when active; the other
- * icons are colour-locked to the foreground by the SVGR mapping, which matches
- * the design's dark glyphs. Every item has an accessible name (icons are
- * aria-hidden); the active tab carries aria-current.
+ * Fixed bottom tab bar for the patient app — all 5 tabs are live:
+ *   1. Home      → `/` (Dashboard)
+ *   2. Compare   → `/compare` (Scan-over-scan progress comparison)
+ *   3. Scan      → `/guided-scan` (4-angle Guided Camera Scan)
+ *   4. Care Guide → `/ai-insight` (Personal Care Guide & daily routine)
+ *   5. Account   → Account & Profile modal (User details, Edit Profile, Latest Results, Sign Out)
  */
-type PopupKey = 'profile' | 'insight' | 'account'
+type PopupKey = 'account' | 'signin-required'
 
 export function BottomNav() {
   const pathname = usePathname()
   const router = useRouter()
   const isAuthenticated = useAppSelector(selectIsAuthenticated)
+  const currentUser = useAppSelector(selectCurrentUser)
   const [logout] = useLogoutMutation()
   const [popup, setPopup] = useState<PopupKey | null>(null)
 
   const close = () => setPopup(null)
   const homeActive = pathname === ROUTES.patient.dashboard
+  const compareActive = pathname === ROUTES.patient.compare
+  const insightActive = pathname === ROUTES.patient.aiInsight
 
   const goTo = (href: string) => {
     close()
+    router.push(href)
+  }
+
+  const goProtected = (href: string) => {
+    if (!isAuthenticated) {
+      setPopup('signin-required')
+      return
+    }
     router.push(href)
   }
 
@@ -55,98 +61,136 @@ export function BottomNav() {
     close()
   }
 
-  // 44px touch targets for the side items; the icon centres within.
   const sideItem =
-    'flex size-11 items-center justify-center rounded-2 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2'
+    'flex flex-col items-center justify-center gap-0.5 rounded-2 px-xs py-1 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2'
+
+  const displayName =
+    currentUser?.firstName || currentUser?.lastName
+      ? `${currentUser.firstName} ${currentUser.lastName}`.trim()
+      : 'DentaVue Member'
+
+  const displayContact = currentUser?.email
+    ? currentUser.email.endsWith('@phone.dentavue.app')
+      ? `+${currentUser.email.replace('phone.', '').replace('@phone.dentavue.app', '')}`
+      : currentUser.email
+    : 'Signed-in account'
 
   return (
     <>
       <nav
         aria-label="Primary"
-        className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface"
+        className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface/95 backdrop-blur-md"
       >
-        <ul className="mx-auto flex h-[84px] app-column items-center justify-around px-lg">
+        <ul className="mx-auto flex h-[84px] app-column items-center justify-around px-md">
+          {/* Tab 1: Home */}
           <li className="flex items-center">
-            {/* Menu.svg is the complete active-home mark: a faint highlight box,
-                the filled house, and its own primary base bar — all self-coloured
-                in #3B9DF0, so it needs no tint or separate indicator. */}
             <Link
               href={ROUTES.patient.dashboard}
               aria-label="Home"
               aria-current={homeActive ? 'page' : undefined}
-              className="flex items-center justify-center rounded-2 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="flex flex-col items-center justify-center rounded-2 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
             >
-              <MenuIcon aria-hidden="true" className="size-12" />
+              <MenuIcon aria-hidden="true" className="size-11" />
+              <span className="text-[11px] font-semibold text-primary">Home</span>
             </Link>
           </li>
 
-          <li>
-            <button type="button" aria-label="Profile" className={sideItem} onClick={() => setPopup('profile')}>
-              <ProfileIcon aria-hidden="true" className="size-11" />
-            </button>
-          </li>
-
+          {/* Tab 2: Compare Progress */}
           <li>
             <button
               type="button"
-              aria-label="Scan"
+              aria-label="Compare progress"
+              aria-current={compareActive ? 'page' : undefined}
+              className={sideItem}
+              onClick={() => goProtected(ROUTES.patient.compare)}
+            >
+              <ProfileIcon aria-hidden="true" className="size-9" />
+              <span className="text-[11px] font-medium text-foreground-secondary">Compare</span>
+            </button>
+          </li>
+
+          {/* Tab 3: Guided Camera Scan */}
+          <li>
+            <button
+              type="button"
+              aria-label="Scan now"
               onClick={() => goTo(ROUTES.patient.guidedScan)}
-              className="flex items-center justify-center rounded-3 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
+              className="flex flex-col items-center justify-center rounded-3 transition-transform active:scale-95 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
             >
               <ScanIcon aria-hidden="true" className="size-14" />
             </button>
           </li>
 
-          <li>
-            <button type="button" aria-label="Insights" className={sideItem} onClick={() => setPopup('insight')}>
-              <InsightIcon aria-hidden="true" className="size-11" />
-            </button>
-          </li>
-
+          {/* Tab 4: Personal Care Guide */}
           <li>
             <button
               type="button"
-              aria-label={isAuthenticated ? 'Account and sign out' : 'Sign in or sign up'}
+              aria-label="Personal care guide"
+              aria-current={insightActive ? 'page' : undefined}
+              className={sideItem}
+              onClick={() => goProtected(ROUTES.patient.aiInsight)}
+            >
+              <InsightIcon aria-hidden="true" className="size-9" />
+              <span className="text-[11px] font-medium text-foreground-secondary">Care Guide</span>
+            </button>
+          </li>
+
+          {/* Tab 5: Account & Profile */}
+          <li>
+            <button
+              type="button"
+              aria-label={isAuthenticated ? 'Account and profile' : 'Sign in or sign up'}
               className={sideItem}
               onClick={() => setPopup('account')}
             >
-              <UserIcon aria-hidden="true" className="size-11" />
+              <UserIcon aria-hidden="true" className="size-9" />
+              <span className="text-[11px] font-medium text-foreground-secondary">Account</span>
             </button>
           </li>
         </ul>
       </nav>
 
-      <Modal open={popup === 'profile'} onClose={close} title="Profile">
-        <div className="flex flex-col gap-lg">
+      {/* Sign-in required prompt when tapping Compare or Care Guide while signed out */}
+      <Modal open={popup === 'signin-required'} onClose={close} title="Sign in to view">
+        <div className="flex flex-col gap-md">
           <p className="text-h2 text-foreground-secondary">
-            Your profile is coming soon — you&apos;ll manage your details and preferences here.
+            Sign in with your phone number or email to view your scan comparisons and personal care guide.
           </p>
-          {/* Primary blue + white per the client's combination (below AA on the
-              fill; kept per client instruction, pending confirmation). */}
-          <Button variant="primary" className="text-surface" onClick={close}>
-            Got it
+          <Button variant="primary" className="text-surface" onClick={() => goTo(ROUTES.auth.signin)}>
+            Sign in
+          </Button>
+          <Button variant="surface" onClick={() => goTo(ROUTES.auth.signup)}>
+            Create account
           </Button>
         </div>
       </Modal>
 
-      <Modal open={popup === 'insight'} onClose={close} title="Insights">
-        <div className="flex flex-col gap-lg">
-          <p className="text-h2 text-foreground-secondary">
-            Insights are a work in progress — deeper analysis of your oral-health trends will appear
-            here soon.
-          </p>
-          {/* Primary blue + white per the client's combination (below AA on the
-              fill; kept per client instruction, pending confirmation). */}
-          <Button variant="primary" className="text-surface" onClick={close}>
-            Got it
-          </Button>
-        </div>
-      </Modal>
-
-      <Modal open={popup === 'account'} onClose={close} title="Account">
+      {/* Rich Account & Profile drawer */}
+      <Modal open={popup === 'account'} onClose={close} title="Your Account">
         {isAuthenticated ? (
-          <div className="flex flex-col gap-lg">
-            <p className="text-h2 text-foreground-secondary">You&apos;re signed in.</p>
+          <div className="flex flex-col gap-md">
+            <div className="flex items-center gap-sm rounded-3 border border-border bg-background p-md">
+              <div className="grid size-11 shrink-0 place-items-center rounded-full bg-primary text-h1 font-bold text-surface">
+                {displayName.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-h2 font-semibold text-foreground">{displayName}</span>
+                <span className="truncate text-nav text-foreground-secondary">{displayContact}</span>
+              </div>
+            </div>
+
+            <Button
+              variant="primary"
+              className="text-surface"
+              onClick={() => goTo(ROUTES.onboarding.profile)}
+            >
+              Edit Health Profile & Goals
+            </Button>
+
+            <Button variant="surface" onClick={() => goTo(ROUTES.patient.scanResults)}>
+              View Latest Scan Report
+            </Button>
+
             <Button variant="secondary" onClick={handleSignOut}>
               Sign out
             </Button>
@@ -154,7 +198,7 @@ export function BottomNav() {
         ) : (
           <div className="flex flex-col gap-md">
             <p className="text-h2 text-foreground-secondary">
-              Sign in or create an account to save your progress.
+              Sign in with your phone number or email to save your mouth checks and track progress over time.
             </p>
             <Button variant="secondary" onClick={() => goTo(ROUTES.auth.signin)}>
               Sign in

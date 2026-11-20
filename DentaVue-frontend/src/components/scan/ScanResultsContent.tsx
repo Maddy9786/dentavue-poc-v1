@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { ScoreGauge } from '@/components/dashboard/ScoreGauge'
-import { StatusIndicator } from '@/components/dashboard/StatusIndicator'
+import { HealthMetricCard } from '@/components/dashboard/HealthMetricCard'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { CheckCircleGlyph, AlertCircleGlyph, AlertTriangleGlyph } from '@/components/ui/StatusGlyphs'
 import { AnnotatedScanCarousel } from '@/components/scan/AnnotatedScanCarousel'
@@ -17,21 +17,9 @@ import { useGetScansQuery } from '@/features/scan/scansApi'
 import { selectIsAuthenticated } from '@/features/auth/authSlice'
 import { useAppSelector } from '@/store/hooks'
 import { ROUTES } from '@/constants/routes'
-import { scanResults, type GlanceIcon, type ScanResultAction } from '@/features/dashboard/mockDashboard'
-import GumIcon from '@/icons/gum.svg'
-import EnamelIcon from '@/icons/enamel.svg'
-import TissueIcon from '@/icons/tissue.svg'
-import PlaqueIcon from '@/icons/plaque.svg'
+import { scanResults, type ScanResultAction } from '@/features/dashboard/mockDashboard'
 import FlossIcon from '@/icons/floss.svg'
 import RescanIcon from '@/icons/rescan.svg'
-
-// Glance glyphs are bare (no chip box), so they render inside a bg-border chip.
-const GLANCE_ICONS: Record<GlanceIcon, ComponentType<SVGProps<SVGSVGElement>>> = {
-  gum: GumIcon,
-  enamel: EnamelIcon,
-  tissue: TissueIcon,
-  plaque: PlaqueIcon,
-}
 
 // Action glyphs are self-contained chips (own #ECE7DF box), rendered directly.
 const ACTION_ICONS: Record<ScanResultAction['icon'], ComponentType<SVGProps<SVGSVGElement>>> = {
@@ -214,32 +202,11 @@ export function ScanResultsContent() {
       <section className="flex flex-col gap-md">
         <SectionHeader title="Your mouth at a glance" meta={`${glance.length} areas tracked`} />
         <ul className="grid grid-cols-2 gap-md">
-          {glance.map((item) => {
-            const Icon = GLANCE_ICONS[item.icon]
-            return (
-              <li key={item.id}>
-                <Card className="flex h-full flex-col gap-sm p-md">
-                  <span
-                    className="grid size-9 shrink-0 place-items-center rounded-2 bg-border text-foreground"
-                    aria-hidden="true"
-                  >
-                    <Icon className="size-5" />
-                  </span>
-                  <div className="flex flex-col gap-2xs">
-                    <h3 className="text-h2 font-semibold text-foreground">{item.title}</h3>
-                    <p className="text-body text-foreground-secondary">{item.description}</p>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between gap-sm pt-xs">
-                    <StatusIndicator tone={item.tone} label={item.status} />
-                    {/* Teal + white per the design (below AA on the fill; kept per client). */}
-                    <Badge tone="secondary" className="text-surface">
-                      {item.trend}
-                    </Badge>
-                  </div>
-                </Card>
-              </li>
-            )
-          })}
+          {glance.map((item) => (
+            <li key={item.id}>
+              <HealthMetricCard metric={item} />
+            </li>
+          ))}
         </ul>
       </section>
 
