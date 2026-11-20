@@ -136,11 +136,27 @@ export function ScanResultsContent() {
   // scan was clean would be a small but real harm.
   const monitor = analysis ? analysis.narrative?.monitor : scanResults.monitor
 
-  const confidenceNote = analysis
-    ? analysis.provisional
-      ? 'Your photos were hard to read, so this result is provisional. Try again in better light.'
-      : scanResults.confidenceNote
-    : scanResults.confidenceNote
+  const confidenceNote = (() => {
+    if (!analysis) return scanResults.confidenceNote
+    if (analysis.provisional) {
+      return 'Your photos were a bit tricky to see clearly, so this result is provisional. Try again in bright light.'
+    }
+    const watchCount = glance.filter((g) => g.tone === 'watch').length
+    const healthyCount = glance.length - watchCount
+    const deltaPart =
+      analysis.pointsFromLastScan.direction === 'up'
+        ? `Up ${analysis.pointsFromLastScan.points} pts since your last check.`
+        : analysis.pointsFromLastScan.direction === 'down'
+          ? `Down ${analysis.pointsFromLastScan.points} pts since your last check.`
+          : 'Checked across all 6 mouth areas.'
+    const watchPart =
+      watchCount === 0
+        ? `All ${glance.length} areas look healthy and clear.`
+        : watchCount === 1
+          ? `${healthyCount} of ${glance.length} areas look healthy · 1 area to keep an eye on.`
+          : `${healthyCount} of ${glance.length} areas look healthy · ${watchCount} areas to keep an eye on.`
+    return `${deltaPart} ${watchPart}`
+  })()
 
   const findingsMeta = captured ? `From your ${captured.date} scan` : scanResults.findingsMeta
 
@@ -193,7 +209,7 @@ export function ScanResultsContent() {
 
       {/* Your mouth at a glance. */}
       <section className="flex flex-col gap-md">
-        <SectionHeader title="Your mouth at a glance" meta={`${glance.length} areas`} />
+        <SectionHeader title="Your mouth at a glance" meta={`${glance.length} areas tracked`} />
         <ul className="grid grid-cols-2 gap-md">
           {glance.map((item) => {
             const Icon = GLANCE_ICONS[item.icon]

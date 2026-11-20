@@ -15,6 +15,7 @@ import {
 import {
   CONFIDENCE_FLOOR,
   RUBRIC_VERSION,
+  alignNarrativeWithScores,
   bandMap,
   comparisonNote,
   computeConfidence,
@@ -22,6 +23,7 @@ import {
   deriveComparison,
   deriveGlance,
   deriveRisk,
+  friendlyText,
   isReadable,
   scoreDelta,
   scoreParameters,
@@ -247,12 +249,21 @@ export async function runAnalysis(userId: string, scanId: string): Promise<void>
       logger.warn({ err, scanId }, 'Narrative pass failed; keeping the scored result')
     }
 
+    const cleanedAnnotations = validAnnotations(vision.data.annotations ?? [], frames.length)
+    const alignedNarrative = alignNarrativeWithScores(
+      narrative,
+      true,
+      scored,
+      cleanedAnnotations,
+      delta,
+    )
+
     await analysisModel.saveAnalysis({
       scanId,
       score,
       confidence,
       provisional,
-      narrative,
+      narrative: alignedNarrative,
       // The model that ANSWERED — may be a fallback if the primary was busy.
       model: vision.model,
       promptVersion: PROMPT_VERSION,
@@ -261,7 +272,7 @@ export async function runAnalysis(userId: string, scanId: string): Promise<void>
       inputTokens: vision.inputTokens + narrativeIn,
       outputTokens: vision.outputTokens + narrativeOut,
       parameters: scored,
-      annotations: validAnnotations(vision.data.annotations ?? [], frames.length),
+      annotations: cleanedAnnotations,
     })
 
     // Keep scans.score in sync so the existing list endpoint needs no join.
@@ -348,6 +359,17 @@ export async function getAnalysis(userId: string, scanId: string): Promise<Analy
   const bands: Record<ParameterKey, Band> = bandMap(record.parameters)
   const score = record.score ?? computeScore(bands, record.parameters)
   const delta = scoreDelta(score, previous?.score ?? null, record.provisional)
+  const friendlyAnnotations = record.annotations.map((a) => ({
+    ...a,
+    label: friendlyText(a.label),
+  }))
+  const alignedNarrative = alignNarrativeWithScores(
+    record.narrative,
+    record.promptVersion === PROMPT_VERSION,
+    record.parameters,
+    friendlyAnnotations,
+    delta,
+  )
 
   return {
     scanId,
@@ -358,10 +380,10 @@ export async function getAnalysis(userId: string, scanId: string): Promise<Analy
     provisional: record.provisional,
     pointsFromLastScan: delta,
     parameters: record.parameters,
-    risk: deriveRisk(record.parameters),
-    glance: deriveGlance(record.parameters, previous?.bands ?? {}, record.provisional),
-    annotations: record.annotations,
-    narrative: record.narrative,
+    risk: deriveRisk(record.parameters, null, friendlyAnnotations),
+    glance: deriveGlance(record.parameters, previous?.bands ?? {}, record.provisional, friendlyAnnotations),
+    annotations: friendlyAnnotations,
+    narrative: alignedNarrative,
     rubricVersion: record.rubricVersion,
   }
 }

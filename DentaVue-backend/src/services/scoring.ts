@@ -6,7 +6,9 @@ import {
   type CompareMetricDto,
   type CompareMetricTone,
   type Delta,
+  type FindingDto,
   type GlanceDto,
+  type NarrativeDto,
   type ParameterKey,
   type RiskItemDto,
   type ScoredParameter,
@@ -401,18 +403,98 @@ const RISK_ROWS: { id: string; parameter: ParameterKey; title: string; detail: s
 ]
 
 /**
+ * Translates any clinical/biological words into simple everyday consumer English
+ * so stored annotations or older narratives remain 100% friendly and readable.
+ */
+const JARGON_REPLACEMENTS: [RegExp, string][] = [
+  [/\bgingival erythema\b/gi, 'gum redness'],
+  [/\berythematous\b/gi, 'red'],
+  [/\berythema\b/gi, 'redness'],
+  [/\bedema\b/gi, 'puffiness'],
+  [/\binflammation\b/gi, 'redness'],
+  [/\binflamed\b/gi, 'red and irritated'],
+  [/\binterdental papillae\b/gi, 'gum tips between teeth'],
+  [/\bpapillae\b/gi, 'gum tips'],
+  [/\bpapillary\b/gi, 'gum-tip'],
+  [/\bgingival margins?\b/gi, 'gum edges'],
+  [/\bgingiva\b/gi, 'gums'],
+  [/\bgingival\b/gi, 'gum'],
+  [/\bsupragingival calculus\b/gi, 'hardened tartar'],
+  [/\bsubgingival calculus\b/gi, 'hardened tartar near the gums'],
+  [/\bcalculus\b/gi, 'hardened tartar'],
+  [/\bminerali[sz]ed deposits?\b/gi, 'hardened tartar'],
+  [/\bbiofilm\b/gi, 'soft plaque buildup'],
+  [/\bcervical third\b/gi, 'area near the gum edge'],
+  [/\bcervical\b/gi, 'gum-edge'],
+  [/\bincisal edges?\b/gi, 'biting edges'],
+  [/\bincisal\b/gi, 'biting-edge'],
+  [/\bocclusal\b/gi, 'chewing-surface'],
+  [/\battrition\b/gi, 'surface wear'],
+  [/\bmaxillary\b/gi, 'upper'],
+  [/\bmandibular\b/gi, 'lower'],
+  [/\banterior teeth\b/gi, 'front teeth'],
+  [/\banterior\b/gi, 'front'],
+  [/\bposterior teeth\b/gi, 'back teeth'],
+  [/\bposterior\b/gi, 'back'],
+  [/\bcentral incisors?\b/gi, 'front teeth'],
+  [/\blateral incisors?\b/gi, 'front side teeth'],
+  [/\bincisors?\b/gi, 'front teeth'],
+  [/\bmolars?\b/gi, 'back chewing teeth'],
+  [/\bdorsal tongue\b/gi, 'top of the tongue'],
+  [/\boral mucosa\b/gi, 'inner cheeks and mouth lining'],
+  [/\bmucosal?\b/gi, 'mouth lining'],
+  [/\babnormalit(?:y|ies)\b/gi, 'unusual spots'],
+  [/\brecession\b/gi, 'gum line drop'],
+]
+
+export function friendlyText(text: string): string {
+  let out = text
+  for (const [pattern, replacement] of JARGON_REPLACEMENTS) {
+    out = out.replace(pattern, replacement)
+  }
+  return out
+}
+
+const FRAME_AREA_NAMES: Record<number, string> = {
+  0: 'front teeth',
+  1: 'upper gums',
+  2: 'tongue',
+  3: 'lower gums',
+}
+
+function annotationLocationsFor(parameter: ParameterKey, annotations: Annotation[]): string[] {
+  const matches = annotations.filter((a) => a.parameter === parameter)
+  if (matches.length === 0) return []
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const match of matches) {
+    const frameName = FRAME_AREA_NAMES[match.position] ?? 'mouth photo'
+    const label = friendlyText(match.label.trim())
+    const phrase = label.toLowerCase().includes(frameName) ? label : `${frameName} (${label})`
+    if (!seen.has(phrase.toLowerCase())) {
+      seen.add(phrase.toLowerCase())
+      result.push(phrase)
+    }
+  }
+  return result.slice(0, 2)
+}
+
+/**
  * The Risk assessment rows. `detail` gains the regions the model actually saw
- * when it named any — that is the one place model text reaches this screen, and
- * it is a location phrase, never a judgement.
+ * when it named any (or from stored annotations on read) — keeping every row
+ * inline with the highlighted boxes on the scan photos.
  */
 export function deriveRisk(
   scored: ScoredParameter[],
   vision: VisionResult | null = null,
+  annotations: Annotation[] = [],
 ): RiskItemDto[] {
   const bands = bandMap(scored)
   return RISK_ROWS.map((row) => {
     const band = bands[row.parameter]
-    const regions = vision?.parameters[row.parameter]?.regions ?? []
+    const visionRegions = (vision?.parameters[row.parameter]?.regions ?? []).map(friendlyText)
+    const regions =
+      visionRegions.length > 0 ? visionRegions : annotationLocationsFor(row.parameter, annotations)
     return {
       id: row.id,
       title: row.title,
@@ -428,56 +510,79 @@ const GLANCE_ROWS: {
   parameter: ParameterKey
   icon: GlanceDto['icon']
   title: string
-  healthy: string
-  watch: string
+  byBand: Record<Band, string>
 }[] = [
   {
     id: 'gum-health',
     parameter: 'gumInflammation',
     icon: 'gum',
     title: 'Gum health',
-    healthy: 'Gums look calm, pink and settled.',
-    watch: 'A little redness or puffiness along the gum edge.',
+    byBand: {
+      none: 'Gums look calm, pink and settled.',
+      mild: 'Slight redness near a few gum edges · easy to settle with soft brushing.',
+      moderate: 'Noticeable redness or puffiness along the gum edge.',
+      marked: 'Pronounced gum redness and puffiness that needs gentle care.',
+    },
   },
   {
     id: 'enamel',
     parameter: 'enamelWear',
     icon: 'enamel',
     title: 'Enamel',
-    healthy: 'Tooth surfaces and biting edges look strong.',
-    watch: 'Gentle wear noticed on the biting edges.',
+    byBand: {
+      none: 'Tooth surfaces and biting edges look strong and smooth.',
+      mild: 'Strong overall · minor everyday wear on the biting edges.',
+      moderate: 'Visible wear or small rough spots on the biting edges.',
+      marked: 'Distinct edge wear noticed — worth having a dentist check.',
+    },
   },
   {
     id: 'oral-tissue',
     parameter: 'tissueAppearance',
     icon: 'tissue',
     title: 'Oral tissue',
-    healthy: 'Tongue and inner cheeks look clear and healthy.',
-    watch: 'Slight tongue coating or surface change noticed.',
+    byBand: {
+      none: 'Tongue and inner cheeks look clear and healthy.',
+      mild: 'Light everyday coating on the tongue surface.',
+      moderate: 'Noticeable tongue coating or surface spot observed.',
+      marked: 'Heavy tongue coating or a spot worth a closer look.',
+    },
   },
   {
     id: 'plaque-risk',
     parameter: 'plaqueExtent',
     icon: 'plaque',
     title: 'Plaque risk',
-    healthy: 'Teeth look clean with very little soft buildup.',
-    watch: 'Some soft buildup — a little extra brushing will help.',
+    byBand: {
+      none: 'Teeth look clean with very little soft buildup.',
+      mild: 'A thin film of soft buildup near the gum edge.',
+      moderate: 'Visible soft buildup — give extra brush time along the gums.',
+      marked: 'Heavy soft buildup across several teeth.',
+    },
   },
   {
     id: 'gum-line',
     parameter: 'gumMarginRecession',
     icon: 'gum',
     title: 'Gum line',
-    healthy: 'Gums are sitting evenly around your teeth.',
-    watch: 'Gum edge looks slightly lower on a few teeth.',
+    byBand: {
+      none: 'Gums are sitting evenly and snugly around your teeth.',
+      mild: 'Gum edge sits slightly lower on 1–2 teeth.',
+      moderate: 'Gum line looks noticeably lower on a few teeth.',
+      marked: 'Pronounced drop in the gum line exposing more of the tooth.',
+    },
   },
   {
     id: 'tartar-stain',
     parameter: 'calculusStain',
     icon: 'plaque',
     title: 'Tartar & stain',
-    healthy: 'No hardened tartar or surface staining seen.',
-    watch: 'Some hard buildup or tea/coffee stain noticed.',
+    byBand: {
+      none: 'No hardened tartar or surface staining seen.',
+      mild: 'Light tea/coffee stain or a trace of tartar between teeth.',
+      moderate: 'Visible hardened tartar or surface staining on several teeth.',
+      marked: 'Heavy tartar buildup or dark staining that needs a professional clean.',
+    },
   },
 ]
 
@@ -492,6 +597,7 @@ export function deriveGlance(
   scored: ScoredParameter[],
   previousBands: Partial<Record<ParameterKey, Band>> = {},
   provisional = false,
+  annotations: Annotation[] = [],
 ): GlanceDto[] {
   const bands = bandMap(scored)
   return GLANCE_ROWS.map((row) => {
@@ -505,11 +611,16 @@ export function deriveGlance(
     else if (row.parameter === 'tissueAppearance') status = 'Normal'
     else status = 'Healthy'
 
+    const baseDescription = row.byBand[band]
+    const locations = band !== 'none' ? annotationLocationsFor(row.parameter, annotations) : []
+    const description =
+      locations.length > 0 ? `${baseDescription} (${locations[0]})` : baseDescription
+
     return {
       id: row.id,
       icon: row.icon,
       title: row.title,
-      description: watch ? row.watch : row.healthy,
+      description,
       status,
       // Tone follows the band, not the trend: something improving from `marked`
       // is still worth watching, and the colour should say so.
@@ -639,15 +750,317 @@ export function comparisonNote(metrics: CompareMetricDto[], delta: Delta): strin
  * place — worse than no circle at all, because it looks authoritative.
  */
 export function validAnnotations(annotations: Annotation[], imageCount: number): Annotation[] {
-  return annotations.filter((annotation) => {
-    const [yMin, xMin, yMax, xMax] = annotation.box
-    return (
-      Number.isInteger(annotation.position) &&
-      annotation.position >= 0 &&
-      annotation.position < imageCount &&
-      [yMin, xMin, yMax, xMax].every((value) => Number.isFinite(value) && value >= 0 && value <= 1000) &&
-      yMax > yMin &&
-      xMax > xMin
-    )
+  return annotations
+    .filter((annotation) => {
+      const [yMin, xMin, yMax, xMax] = annotation.box
+      return (
+        Number.isInteger(annotation.position) &&
+        annotation.position >= 0 &&
+        annotation.position < imageCount &&
+        [yMin, xMin, yMax, xMax].every((value) => Number.isFinite(value) && value >= 0 && value <= 1000) &&
+        yMax > yMin &&
+        xMax > xMin
+      )
+    })
+    .map((annotation) => ({
+      ...annotation,
+      label: friendlyText(annotation.label),
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Precision Inline Narrative — 100% locked to scored parameters & annotations
+// ---------------------------------------------------------------------------
+
+const PARAMETER_FRIENDLY_META: Record<
+  ParameterKey,
+  {
+    name: string
+    goodTitle: string
+    mildTitle: string
+    watchTitle: string
+    defaultLocation: string
+    careTipTitle: string
+    careTipDetail: string
+    causes: string[]
+    monitorBody: string
+    monitorRecommend: string
+  }
+> = {
+  gumInflammation: {
+    name: 'Gum health',
+    goodTitle: 'Gums look calm, pink and healthy',
+    mildTitle: 'Slight gum redness noticed near the gum edge',
+    watchTitle: 'Gums look red or slightly puffy along the gum edge',
+    defaultLocation: 'Along the gum line',
+    careTipTitle: 'Use gentle circular brushing along your gums',
+    careTipDetail: 'Angle a soft-bristle brush lightly toward where your gums meet your teeth',
+    causes: [
+      'Brushing a bit too firmly along the gum edge',
+      'Soft everyday plaque sitting near the gum line',
+      'Using a toothbrush with firm or worn bristles',
+    ],
+    monitorBody:
+      'Your photos show noticeable redness or puffiness along the gum edge. Gentle circular brushing and daily cleaning between teeth usually help calm this down within two weeks.',
+    monitorRecommend: 'having a dentist or hygienist take a quick look if it stays red or bleeds.',
+  },
+  plaqueExtent: {
+    name: 'Daily plaque control',
+    goodTitle: 'Tooth surfaces look clean and well-brushed',
+    mildTitle: 'A thin layer of soft everyday buildup noticed',
+    watchTitle: 'Visible soft buildup sitting near the gum line',
+    defaultLocation: 'Near the gum edge and side teeth',
+    careTipTitle: 'Spend an extra 30 seconds brushing along the gum edge',
+    careTipDetail: 'Clean gently between your teeth before bedtime to clear soft buildup',
+    causes: [
+      'Spots near the gum line or back teeth that a quick brush can miss',
+      'Skipping daily cleaning between teeth',
+      'Snacking or sugary drinks between meals',
+    ],
+    monitorBody:
+      'We noticed visible soft buildup on several teeth. Because soft plaque can irritate gums if left behind, giving those spots a little extra gentle brushing each night makes a big difference.',
+    monitorRecommend: 'a routine hygiene clean if the buildup feels hard to brush away.',
+  },
+  gumMarginRecession: {
+    name: 'Gum line position',
+    goodTitle: 'Gums are sitting evenly around your teeth',
+    mildTitle: 'Gum edge sits slightly lower on a couple of teeth',
+    watchTitle: 'Gum line sits noticeably lower on a few teeth',
+    defaultLocation: 'Front and side gum edges',
+    careTipTitle: 'Ease off brushing pressure along the gum line',
+    careTipDetail: 'Use a soft brush and avoid scrubbing side-to-side across the gums',
+    causes: [
+      'Scrubbing side-to-side with too much pressure',
+      'Using a medium or hard-bristled toothbrush',
+      'Clenching or grinding teeth at night',
+    ],
+    monitorBody:
+      'The gum edge looks slightly lower on a few teeth. Switching to a soft toothbrush and light circular strokes helps protect your gum line from dropping further.',
+    monitorRecommend: 'mentioning this at your next routine dental visit so they can track it.',
+  },
+  enamelWear: {
+    name: 'Tooth surface & edges',
+    goodTitle: 'Tooth surfaces and biting edges look strong',
+    mildTitle: 'Gentle everyday wear on the biting edges',
+    watchTitle: 'Noticeable wear or roughness on the biting edges',
+    defaultLocation: 'Front biting edges',
+    careTipTitle: 'Protect your tooth edges from acid and grinding',
+    careTipDetail: 'Rinse with water after acidic drinks and wait 30 minutes before brushing',
+    causes: [
+      'Everyday biting wear or clenching teeth during sleep',
+      'Acidic drinks like citrus, soda, or sparkling water',
+      'Brushing immediately after acidic food or drinks',
+    ],
+    monitorBody:
+      'Your front biting edges show some visible surface wear. Using a fluoride toothpaste and avoiding brushing right after acidic drinks helps keep the surface strong.',
+    monitorRecommend: 'asking your dentist whether a night guard or enamel care would help.',
+  },
+  tissueAppearance: {
+    name: 'Tongue & inner cheeks',
+    goodTitle: 'Tongue and inner cheeks look clear and healthy',
+    mildTitle: 'Light everyday coating on the tongue surface',
+    watchTitle: 'Noticeable coating or surface change on the tongue',
+    defaultLocation: 'Top surface of the tongue',
+    careTipTitle: 'Gently clean your tongue surface each morning',
+    careTipDetail: 'Brush or use a tongue scraper from back to front and stay well hydrated',
+    causes: [
+      'Everyday food film settling on the tongue overnight',
+      'Not drinking enough water during the day',
+      'Coffee, tea, or dry mouth from mouth-breathing',
+    ],
+    monitorBody:
+      'We noticed a visible coating on the tongue surface. Gentle daily tongue cleaning and drinking plenty of water usually refreshes this within a few days.',
+    monitorRecommend: 'having a dentist check any spot or patch that lasts more than two weeks.',
+  },
+  calculusStain: {
+    name: 'Tartar & surface stain',
+    goodTitle: 'No hardened tartar or surface staining seen',
+    mildTitle: 'Light surface staining or trace tartar between teeth',
+    watchTitle: 'Hardened tartar or dark staining noticed near the gums',
+    defaultLocation: 'Between the front teeth near the gum line',
+    careTipTitle: 'Clean between your lower front teeth daily',
+    careTipDetail: 'Daily interdental cleaning stops soft plaque from hardening into tartar',
+    causes: [
+      'Everyday tea, coffee, or dark food pigments',
+      'Soft plaque left between teeth that hardened over time',
+      'Tight spaces between lower front teeth where minerals build up',
+    ],
+    monitorBody:
+      'Some hardened tartar or surface staining is visible near the gum line. Once plaque hardens into tartar, regular brushing cannot remove it — only a gentle professional scale and polish can.',
+    monitorRecommend: 'booking a routine scale and polish with a dental hygienist.',
+  },
+}
+
+/**
+ * Deterministically builds a 100% inline, everyday-friendly NarrativeDto from
+ * the 6 scored parameters and annotations, or sanitizes and aligns a model-generated
+ * narrative so it never contradicts the 6 Glance cards or Risk rows.
+ */
+export function buildInlineNarrative(
+  scored: ScoredParameter[],
+  annotations: Annotation[],
+  delta: Delta,
+): NarrativeDto {
+  const sorted = [...scored].sort((a, b) => {
+    const bandDiff = bandValue(b.band) - bandValue(a.band)
+    if (bandDiff !== 0) return bandDiff
+    return b.severity - a.severity
   })
+
+  const topThree = sorted.slice(0, 3)
+  const findings: FindingDto[] = topThree.map((entry, index) => {
+    const meta = PARAMETER_FRIENDLY_META[entry.parameter]
+    const watch = entry.band === 'moderate' || entry.band === 'marked'
+    const locations = annotationLocationsFor(entry.parameter, annotations)
+    const title = watch
+      ? meta.watchTitle
+      : entry.band === 'mild'
+        ? meta.mildTitle
+        : meta.goodTitle
+    const detail =
+      locations.length > 0
+        ? `Seen on ${locations.join(' and ')}`
+        : `${meta.defaultLocation} · ${entry.band === 'none' ? 'all clear' : `${entry.band} level`}`
+
+    return {
+      id: `finding-${index}`,
+      title,
+      detail,
+      status: watch ? 'watch' : 'good',
+    }
+  })
+
+  const worst = sorted[0]!
+  const worstMeta = PARAMETER_FRIENDLY_META[worst.parameter]
+  const worstLocations = annotationLocationsFor(worst.parameter, annotations)
+  const worstWatch = worst.band === 'moderate' || worst.band === 'marked'
+  const watchItems = scored.filter((s) => s.band === 'moderate' || s.band === 'marked')
+  const healthyCount = scored.length - watchItems.length
+
+  const monitor = worstWatch
+    ? {
+        badge: 'Keep an eye on',
+        title:
+          worstLocations.length > 0
+            ? `${worstMeta.name} · ${worstLocations[0]}`
+            : worstMeta.watchTitle,
+        body: worstMeta.monitorBody,
+        recommended: worstMeta.monitorRecommend,
+      }
+    : null
+
+  const actions = [
+    {
+      id: 'floss',
+      icon: 'floss' as const,
+      title: worstMeta.careTipTitle,
+      detail:
+        worstLocations.length > 0
+          ? `Focus on ${worstLocations[0]} — ${worstMeta.careTipDetail.toLowerCase()}`
+          : worstMeta.careTipDetail,
+    },
+    {
+      id: 'rescan',
+      icon: 'rescan' as const,
+      title: 'Take a check-in scan in 2 weeks',
+      detail: worstWatch
+        ? `Track how your ${worstMeta.name.toLowerCase()} settles with gentle daily care`
+        : 'Keep tracking all 6 mouth areas to maintain your healthy routine',
+    },
+  ]
+
+  const insightStatus = worstWatch
+    ? 'Watch'
+    : delta.direction === 'up'
+      ? 'Improving'
+      : 'Healthy'
+
+  const insightTitle = worstWatch
+    ? `${worstMeta.name} needs a little extra care`
+    : worst.band === 'mild'
+      ? `Overall healthy · minor note on ${worstMeta.name.toLowerCase()}`
+      : 'All 6 mouth areas look clean and healthy'
+
+  const insightSummary = worstWatch
+    ? `${healthyCount} of your 6 tracked mouth areas look good, while ${watchItems.map((w) => PARAMETER_FRIENDLY_META[w.parameter].name.toLowerCase()).join(' and ')} ${watchItems.length === 1 ? 'shows' : 'show'} changes worth gentle daily attention${worstLocations.length > 0 ? ` (especially around ${worstLocations[0]})` : ''}. ${worstMeta.careTipDetail} over the next two weeks to help it settle.`
+    : worst.band === 'mild'
+      ? `All 6 tracked mouth areas are in a good range, with only a mild everyday note on ${worstMeta.name.toLowerCase()}${worstLocations.length > 0 ? ` around ${worstLocations[0]}` : ''}. Keeping up your daily brushing and cleaning between teeth will help keep your mouth in great shape.`
+      : 'All 6 tracked areas — gums, enamel, tongue, plaque control, gum line and tartar — look calm and well cared for. Keep up your current brushing and interdental cleaning routine.'
+
+  return {
+    findings,
+    monitor,
+    actions,
+    insight: {
+      title: insightTitle,
+      status: insightStatus,
+      summary: insightSummary,
+      likelyCauses: worstMeta.causes,
+      caution:
+        'This personal care guide is an everyday wellness summary from your photos, not a medical diagnosis. If you ever notice pain, swelling, or bleeding that does not settle, book a visit with a dentist.',
+    },
+  }
+}
+
+/**
+ * Ensures any stored or model-generated narrative is 100% inline with the 6
+ * scored parameters, strips any biological/clinical jargon, and upgrades legacy
+ * narratives automatically.
+ */
+export function alignNarrativeWithScores(
+  narrative: NarrativeDto | null,
+  isCurrentPromptVersion: boolean,
+  scored: ScoredParameter[],
+  annotations: Annotation[],
+  delta: Delta,
+): NarrativeDto {
+  const inline = buildInlineNarrative(scored, annotations, delta)
+  if (!narrative || !isCurrentPromptVersion) {
+    return inline
+  }
+
+  const hasWatch = scored.some((s) => s.band === 'moderate' || s.band === 'marked')
+
+  return {
+    findings:
+      narrative.findings.length > 0
+        ? narrative.findings.map((f, idx) => ({
+            id: f.id || `finding-${idx}`,
+            title: friendlyText(f.title),
+            detail: friendlyText(f.detail),
+            status: f.status,
+          }))
+        : inline.findings,
+    // Strictly align monitor presence with whether a parameter is actually moderate/marked
+    monitor: hasWatch
+      ? narrative.monitor
+        ? {
+            badge: 'Keep an eye on',
+            title: friendlyText(narrative.monitor.title),
+            body: friendlyText(narrative.monitor.body),
+            recommended: friendlyText(narrative.monitor.recommended),
+          }
+        : inline.monitor
+      : null,
+    actions:
+      narrative.actions.length > 0
+        ? narrative.actions.map((a) => ({
+            ...a,
+            title: friendlyText(a.title),
+            detail: friendlyText(a.detail),
+          }))
+        : inline.actions,
+    insight: narrative.insight
+      ? {
+          title: friendlyText(narrative.insight.title),
+          status: inline.insight!.status,
+          summary: friendlyText(narrative.insight.summary),
+          likelyCauses:
+            narrative.insight.likelyCauses.length > 0
+              ? narrative.insight.likelyCauses.map(friendlyText)
+              : inline.insight!.likelyCauses,
+          caution: friendlyText(narrative.insight.caution),
+        }
+      : inline.insight,
+  }
 }

@@ -7,32 +7,29 @@ import { ScanShowcase } from '@/components/scan/ScanShowcase'
 import { ScanUnclearNotice } from '@/components/scan/ScanUnclearNotice'
 import { RescanReminderButton } from '@/components/insight/RescanReminderButton'
 import { useScanAnalysis } from '@/features/scan/useScanAnalysis'
+import { useGetScansQuery } from '@/features/scan/scansApi'
+import { formatScanDate } from '@/features/scan/scanDisplay'
+import { selectIsAuthenticated } from '@/features/auth/authSlice'
+import { useAppSelector } from '@/store/hooks'
 import { aiInsightDetail, type InsightAction } from '@/features/dashboard/mockDashboard'
 import AiInsightIcon from '@/icons/ai-insight.svg'
 
 /**
- * The AI-insight body — summary, likely causes, what to do, caution.
- *
- * A client island so it can read the real analysis, falling back to the
- * placeholder write-up when there isn't one (signed out, no scans, still
- * analysing, or the prose pass failed). The page stays a server shell.
- *
- * `narrative.insight` comes from the SECOND, text-only model pass, which is
- * given the already-computed bands and score. That is why nothing here needs to
- * cross-check a number against the prose: pass 2 is told the numbers and is
- * instructed not to restate them, so the two cannot disagree.
- *
- * `confidence` is the one figure shown alongside, and it is computed by the
- * backend — not asked of the model.
+ * The Personal Care Guide body — summary, likely causes, what to do, caution.
  */
 export function AiInsightContent() {
   const { analysis, error } = useScanAnalysis()
+  const isAuthenticated = useAppSelector(selectIsAuthenticated)
+  const { data: scans } = useGetScansQuery(undefined, { skip: !isAuthenticated })
 
   // Unreadable/failed scan → the retake state, not a sample write-up (see
   // ScanResultsContent for the same guard). Signed out, `error` is null.
   if (error) {
     return <ScanUnclearNotice message={error} />
   }
+
+  const scan = analysis ? scans?.find((entry) => entry.id === analysis.scanId) : undefined
+  const updatedLabel = scan ? formatScanDate(scan.capturedAt) : aiInsightDetail.updated
 
   const written = analysis?.narrative?.insight ?? null
 
@@ -71,7 +68,7 @@ export function AiInsightContent() {
           <div className="flex min-w-0 flex-1 flex-col">
             <h2 className="text-h2 font-semibold text-foreground">{title}</h2>
             <span className="text-nav text-foreground-secondary">
-              Updated {aiInsightDetail.updated} · Confidence {confidence}%
+              Updated {updatedLabel} · Confidence {confidence}%
             </span>
           </div>
           {/* Teal + white 'Watch' pill, matching the home card's status
