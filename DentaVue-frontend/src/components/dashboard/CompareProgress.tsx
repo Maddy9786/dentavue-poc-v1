@@ -24,7 +24,7 @@ export function CompareProgress() {
   const shown = comparePair(scans)
 
   return (
-    <section className="flex flex-col gap-md">
+    <section id="compare-section" className="flex scroll-mt-6 flex-col gap-md">
       <SectionHeader title="Compare Progress" meta={<ViewScanButton />} />
 
       {mode === 'empty' ? (

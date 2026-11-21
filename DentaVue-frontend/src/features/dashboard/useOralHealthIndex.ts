@@ -126,6 +126,7 @@ export function useOralHealthIndex(): { data: OralHealthIndex; isReal: boolean }
   }
 
   const capturedAt = comparison.to.capturedAt
+  const nextBanner = nextScanBanner(capturedAt)
 
   const signedPoints =
     analysis.pointsFromLastScan.direction === 'down'
@@ -144,7 +145,8 @@ export function useOralHealthIndex(): { data: OralHealthIndex; isReal: boolean }
     // relative label needs `Date.now()` in render, which risks a hydration
     // mismatch and breaks the render-purity rule the codebase holds to.
     lastScan: formatScanDate(capturedAt) || '—',
-    nextScan: nextScanBanner(capturedAt).inLabel,
+    nextScan: nextBanner.inLabel,
+    nextScanDate: nextBanner.date,
     stats: buildStats(analysis, comparison),
   }
 

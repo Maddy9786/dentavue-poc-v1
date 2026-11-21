@@ -22,9 +22,39 @@ import InfoIcon from '@/icons/info.svg'
 export function OralHealthCard() {
   const router = useRouter()
   const { data, isReal } = useOralHealthIndex()
-  const { score, max, condition, pointsFromLastScan, confidence, lastScan, nextScan, stats } = data
+  const {
+    score,
+    max,
+    condition,
+    pointsFromLastScan,
+    confidence,
+    lastScan,
+    nextScan,
+    nextScanDate,
+    stats,
+  } = data
   const [infoOpen, setInfoOpen] = useState(false)
   const [reminderOpen, setReminderOpen] = useState(false)
+
+  const handleStatClick = (index: number) => {
+    if (index === 0) {
+      document.getElementById('glance-section')?.scrollIntoView({ behavior: 'smooth' })
+      return
+    }
+    if (index === 1) {
+      if (isReal) {
+        router.push(ROUTES.patient.riskAssessment)
+      } else {
+        document.getElementById('glance-section')?.scrollIntoView({ behavior: 'smooth' })
+      }
+      return
+    }
+    if (isReal) {
+      router.push(ROUTES.patient.compare)
+    } else {
+      document.getElementById('compare-section')?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
 
   const clarityBadge =
     confidence >= 85
@@ -106,30 +136,61 @@ export function OralHealthCard() {
             <dl className="flex items-start justify-between gap-md rounded-3 border border-border/70 bg-background/60 px-md py-sm">
               <div className="flex flex-col">
                 <dt className="text-nav text-foreground-secondary">Last Scan</dt>
-                <dd className="text-body font-semibold text-foreground">{lastScan}</dd>
+                <dd className="text-body font-semibold text-foreground">
+                  {isReal ? (
+                    <button
+                      type="button"
+                      onClick={() => router.push(ROUTES.patient.scanResults)}
+                      className="underline decoration-border underline-offset-2 transition-colors hover:text-primary"
+                    >
+                      {lastScan}
+                    </button>
+                  ) : (
+                    lastScan
+                  )}
+                </dd>
               </div>
               <div className="flex flex-col items-end text-right">
                 <dt className="text-nav text-foreground-secondary">Next Scan</dt>
-                <dd className="text-body font-semibold text-primary">{nextScan}</dd>
+                <dd className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => setReminderOpen(true)}
+                    title={nextScanDate ? `Recommended due date: ${nextScanDate}` : 'Set reminder'}
+                    className="text-body font-semibold text-primary underline decoration-primary/30 decoration-dotted underline-offset-2 transition-colors hover:decoration-primary"
+                  >
+                    {nextScan}
+                  </button>
+                  {nextScanDate && (
+                    <span
+                      role="tooltip"
+                      className="pointer-events-none absolute -top-8 right-0 z-20 hidden whitespace-nowrap rounded-2 bg-foreground px-xs py-2xs text-[11px] font-medium text-surface shadow-md group-hover:block group-focus-within:block"
+                    >
+                      Due {nextScanDate}
+                    </span>
+                  )}
+                </dd>
               </div>
             </dl>
           </div>
         </div>
 
-        {/* 3 Summary Stat Tiles */}
+        {/* 3 Interactive Summary Stat Tiles */}
         <div className="grid grid-cols-3 gap-sm border-t border-border pt-md">
           {stats.map((stat, i) => (
-            <div
+            <button
               key={stat.label}
+              type="button"
+              onClick={() => handleStatClick(i)}
               className={cn(
-                'flex flex-col gap-2xs rounded-3 border border-border/70 bg-background/60 px-sm py-sm',
+                'flex flex-col gap-2xs rounded-3 border border-border/70 bg-background/60 px-sm py-sm text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2',
                 i === 1 && stat.value.startsWith('0') && 'border-emerald-200/80 bg-emerald-50/40',
               )}
             >
               <span className="text-nav text-foreground-secondary">{stat.label}</span>
               <span className="text-h1 font-bold text-primary">{stat.value}</span>
-              <span className="text-[11px] text-foreground-secondary">{stat.note}</span>
-            </div>
+              <span className="text-[11px] text-foreground-secondary">{stat.note} →</span>
+            </button>
           ))}
         </div>
 

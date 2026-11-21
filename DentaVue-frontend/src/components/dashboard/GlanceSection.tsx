@@ -87,7 +87,7 @@ export function GlanceSection() {
       : emptySignedInMetrics
 
   return (
-    <section className="flex flex-col gap-md">
+    <section id="glance-section" className="flex scroll-mt-6 flex-col gap-md">
       <SectionHeader title="Your mouth at a glance" meta={`${metrics.length} areas tracked`} />
       <ul className="grid grid-cols-2 gap-md">
         {metrics.map((metric) => {

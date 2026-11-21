@@ -21,6 +21,7 @@ export interface OralHealthIndex {
   confidence: number
   lastScan: string
   nextScan: string
+  nextScanDate?: string
   stats: { label: string; value: string; note: string }[]
 }
 
@@ -98,6 +99,7 @@ export const oralHealthIndex: OralHealthIndex = {
   confidence: 92,
   lastScan: '2 days ago',
   nextScan: 'in 12 days',
+  nextScanDate: 'Dec 3, 2026',
   stats: [
     { label: 'Healthy Areas', value: '5 of 6', note: 'looking good' },
     { label: 'Needs Care', value: '1 area', note: 'tooth cleanliness' },
