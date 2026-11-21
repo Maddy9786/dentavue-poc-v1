@@ -1,33 +1,39 @@
 'use client'
 
+import { useState } from 'react'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
-import { CheckGlyph, AlertCircleGlyph, AlertTriangleGlyph } from '@/components/ui/StatusGlyphs'
+import { CheckGlyph } from '@/components/ui/StatusGlyphs'
 import { ScanShowcase } from '@/components/scan/ScanShowcase'
 import { ScanUnclearNotice } from '@/components/scan/ScanUnclearNotice'
 import { RescanReminderButton } from '@/components/insight/RescanReminderButton'
 import { useScanAnalysis } from '@/features/scan/useScanAnalysis'
 import { useGetScansQuery } from '@/features/scan/scansApi'
 import { formatScanDate } from '@/features/scan/scanDisplay'
-import { selectIsAuthenticated } from '@/features/auth/authSlice'
+import { selectCurrentUser, selectIsAuthenticated } from '@/features/auth/authSlice'
 import { useAppSelector } from '@/store/hooks'
+import { cn } from '@/lib/cn'
 import { aiInsightDetail, type InsightAction } from '@/features/dashboard/mockDashboard'
 import AiInsightIcon from '@/icons/ai-insight.svg'
 
 /**
- * The Personal Care Guide body — summary, likely causes, what to do, caution.
+ * Personal Care Guide — warm, interactive, everyday oral care plan tailored
+ * to the user's latest scan.
  */
 export function AiInsightContent() {
   const { analysis, error } = useScanAnalysis()
   const isAuthenticated = useAppSelector(selectIsAuthenticated)
+  const currentUser = useAppSelector(selectCurrentUser)
   const { data: scans } = useGetScansQuery(undefined, { skip: !isAuthenticated })
 
-  // Unreadable/failed scan → the retake state, not a sample write-up (see
-  // ScanResultsContent for the same guard). Signed out, `error` is null.
+  // Interactive daily checklist state so users can tick off their care habits today
+  const [checkedIds, setCheckedIds] = useState<Record<string, boolean>>({})
+
   if (error) {
     return <ScanUnclearNotice message={error} />
   }
 
+  const firstName = currentUser?.firstName?.trim()
   const scan = analysis ? scans?.find((entry) => entry.id === analysis.scanId) : undefined
   const updatedLabel = scan ? formatScanDate(scan.capturedAt) : aiInsightDetail.updated
 
@@ -42,61 +48,143 @@ export function AiInsightContent() {
   const caution = written?.caution ?? aiInsightDetail.caution
   const confidence = analysis?.confidence ?? aiInsightDetail.confidence
 
-  /**
-   * "What to do" reuses pass 2's `actions` when there is a real analysis. Those
-   * carry no done/todo flag — the model is not asked for one, because whether a
-   * user has actually done something is app state, not an observation. The
-   * re-scan action is the only one that is inherently upcoming, so it is the
-   * only one marked as such.
-   */
-  const whatToDo: InsightAction[] = analysis?.narrative?.actions.length
+  const clarityLabel =
+    confidence >= 80 ? 'Clear & detailed' : confidence >= 60 ? 'Good lighting' : 'Provisional'
+
+  const baseActions: InsightAction[] = analysis?.narrative?.actions.length
     ? analysis.narrative.actions.map((action) => ({
         id: action.id,
         title: action.title,
         detail: action.detail,
-        done: action.icon !== 'rescan',
+        done: false,
       }))
-    : aiInsightDetail.whatToDo
+    : aiInsightDetail.whatToDo.map((a) => ({ ...a, done: false }))
+
+  const whatToDo: InsightAction[] = [
+    ...baseActions,
+    {
+      id: 'water-rinse',
+      title: 'Rinse with plain water after tea, coffee or meals',
+      detail: 'A quick 5-second swish keeps teeth fresh and protects enamel between brushes',
+      done: false,
+    },
+  ]
+
+  const completedCount = whatToDo.filter((a) => checkedIds[a.id]).length
+
+  const toggleAction = (id: string) => {
+    setCheckedIds((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
 
   return (
     <>
+      {/* Warm personal welcome banner */}
+      <div className="rounded-4 border border-secondary/30 bg-gradient-to-br from-secondary/10 via-surface to-primary/5 p-md">
+        <p className="text-h2 font-semibold text-foreground">
+          {firstName ? `Hi ${firstName}, here’s your gentle care plan` : 'Your gentle daily care plan'}
+        </p>
+        <p className="mt-2xs text-body text-foreground-secondary">
+          Small, comfortable daily steps make the biggest difference for your gums and smile. Take it
+          one easy habit at a time.
+        </p>
+      </div>
+
       {/* Summary card */}
       <Card className="flex flex-col gap-md">
         <div className="flex items-start gap-sm">
-          {/* ai-insight.svg is a self-contained chip (own box + glyph). */}
           <AiInsightIcon aria-hidden="true" className="size-9 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col">
             <h2 className="text-h2 font-semibold text-foreground">{title}</h2>
             <span className="text-nav text-foreground-secondary">
-              Updated {updatedLabel} · Confidence {confidence}%
+              Updated {updatedLabel} · Photo clarity {confidence}% ({clarityLabel})
             </span>
           </div>
-          {/* Teal + white 'Watch' pill, matching the home card's status
-              treatment (the design draws these fills with white text). */}
           <Badge tone="secondary" className="shrink-0 text-surface">
             {status}
           </Badge>
         </div>
-        <p className="text-body text-foreground-secondary">{summary}</p>
+        <p className="text-body leading-relaxed text-foreground-secondary">{summary}</p>
       </Card>
 
-      {/* What the scan shows — the user's real scans (demo when signed out, the
-          blank placeholder when signed in with none), same source as home's
-          Compare Progress and /compare. */}
+      {/* What the scan shows */}
       <section className="flex flex-col gap-md">
-        <h2 className="text-h1 font-semibold text-foreground">What the scan shows</h2>
+        <h2 className="text-h1 font-semibold text-foreground">What we noticed in your photos</h2>
         <ScanShowcase />
       </section>
 
-      {/* Likely causes — numbered list on one card. */}
+      {/* Interactive Daily Care Routine */}
       <section className="flex flex-col gap-md">
-        <h2 className="text-h1 font-semibold text-foreground">Likely causes</h2>
+        <div className="flex items-baseline justify-between gap-sm">
+          <h2 className="text-h1 font-semibold text-foreground">Your easy daily care steps</h2>
+          <span className="text-nav font-semibold text-secondary">
+            {completedCount} of {whatToDo.length} done today
+          </span>
+        </div>
+
+        {/* Mini progress bar */}
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-border" aria-hidden="true">
+          <div
+            className="h-full rounded-full bg-secondary transition-all duration-300"
+            style={{ width: `${Math.round((completedCount / whatToDo.length) * 100)}%` }}
+          />
+        </div>
+
+        <Card>
+          <ul className="flex flex-col divide-y divide-border">
+            {whatToDo.map((action) => {
+              const checked = Boolean(checkedIds[action.id])
+              return (
+                <li key={action.id} className="py-sm first:pt-0 last:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleAction(action.id)}
+                    aria-pressed={checked}
+                    className="flex w-full items-start gap-md text-left"
+                  >
+                    <span
+                      className={cn(
+                        'grid size-8 shrink-0 place-items-center rounded-2 border transition-colors',
+                        checked
+                          ? 'border-secondary bg-secondary text-surface'
+                          : 'border-border bg-background text-foreground-secondary',
+                      )}
+                      aria-hidden="true"
+                    >
+                      {checked ? <CheckGlyph /> : <span className="size-2.5 rounded-full bg-border" />}
+                    </span>
+                    <div className="flex flex-col">
+                      <span
+                        className={cn(
+                          'text-body font-semibold transition-colors',
+                          checked ? 'line-through text-foreground-secondary' : 'text-foreground',
+                        )}
+                      >
+                        {action.title}
+                      </span>
+                      <span className="text-nav text-foreground-secondary">{action.detail}</span>
+                    </div>
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </Card>
+      </section>
+
+      {/* Everyday habits behind this (empathetic framing) */}
+      <section className="flex flex-col gap-md">
+        <div className="flex flex-col gap-2xs">
+          <h2 className="text-h1 font-semibold text-foreground">Why this happens</h2>
+          <p className="text-body text-foreground-secondary">
+            Nothing to worry about — these everyday habits are very common and easy to adjust:
+          </p>
+        </div>
         <Card>
           <ol className="flex flex-col divide-y divide-border">
             {likelyCauses.map((cause, i) => (
               <li key={cause} className="flex items-center gap-md py-sm first:pt-0 last:pb-0">
                 <span
-                  className="grid size-8 shrink-0 place-items-center rounded-2 bg-border text-body font-semibold text-foreground"
+                  className="grid size-8 shrink-0 place-items-center rounded-2 bg-primary/10 text-body font-semibold text-primary"
                   aria-hidden="true"
                 >
                   {i + 1}
@@ -108,36 +196,22 @@ export function AiInsightContent() {
         </Card>
       </section>
 
-      {/* What to do — recommended actions; done steps show a check, the upcoming
-          re-scan shows an alert mark. */}
-      <section className="flex flex-col gap-md">
-        <h2 className="text-h1 font-semibold text-foreground">What to do</h2>
-        <Card>
-          <ul className="flex flex-col divide-y divide-border">
-            {whatToDo.map((action) => (
-              <li key={action.id} className="flex items-start gap-md py-sm first:pt-0 last:pb-0">
-                <span
-                  className="grid size-8 shrink-0 place-items-center rounded-2 bg-border text-foreground"
-                  aria-hidden="true"
-                >
-                  {action.done ? <CheckGlyph /> : <AlertCircleGlyph />}
-                </span>
-                <div className="flex flex-col">
-                  <span className="text-body font-semibold text-foreground">{action.title}</span>
-                  <span className="text-nav text-foreground-secondary">{action.detail}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </section>
-
-      {/* Caution — the safety net; muted, never alarming. */}
-      <div className="flex items-start gap-sm rounded-4 border border-border bg-surface p-md">
-        <span className="shrink-0 text-foreground-secondary" aria-hidden="true">
-          <AlertTriangleGlyph />
+      {/* Warm dentist care note */}
+      <div className="flex items-start gap-sm rounded-4 border border-primary/25 bg-primary/5 p-md">
+        <span
+          className="grid size-7 shrink-0 place-items-center rounded-full bg-primary/15 text-primary"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24" fill="none" className="size-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+          </svg>
         </span>
-        <p className="text-body text-foreground-secondary">{caution}</p>
+        <div className="flex flex-col gap-2xs">
+          <span className="text-body font-semibold text-foreground">
+            Here whenever you need extra care
+          </span>
+          <p className="text-body text-foreground-secondary">{caution}</p>
+        </div>
       </div>
 
       <RescanReminderButton label={aiInsightDetail.ctaLabel} />
