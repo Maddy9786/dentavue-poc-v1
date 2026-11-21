@@ -330,17 +330,20 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
         <p className="text-body leading-snug text-foreground-secondary">{metric.description}</p>
       </div>
 
-      {/* 4-Segment Medical Status Bar + Real-Time Status Dot */}
+      {/* 4-Segment Medical Status Meter + Real-Time Status Dot */}
       <div className="mt-auto flex flex-col gap-xs pt-xs">
-        <div className="flex items-center gap-1" aria-hidden="true">
+        <div
+          className="flex items-center gap-1 rounded-full bg-border/40 p-0.5"
+          aria-hidden="true"
+        >
           {[0, 1, 2, 3].map((barIdx) => {
             const active = barIdx < statusStyle.filledBars
             return (
               <span
                 key={barIdx}
                 className={cn(
-                  'h-1.5 flex-1 rounded-full transition-colors',
-                  active ? statusStyle.barColor : 'bg-border',
+                  'h-1.5 flex-1 rounded-full transition-all duration-300',
+                  active ? statusStyle.barColor : 'bg-transparent',
                 )}
               />
             )
@@ -362,8 +365,8 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
             </span>
           </span>
 
-          <span className="text-[11px] font-medium text-foreground-secondary">
-            {visual.categoryTag}
+          <span className="text-[11px] font-medium tabular-nums text-foreground-secondary">
+            {visual.categoryTag} · {statusStyle.filledBars}/4
           </span>
         </div>
       </div>
