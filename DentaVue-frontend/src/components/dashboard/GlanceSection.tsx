@@ -5,7 +5,16 @@ import { HealthMetricCard } from './HealthMetricCard'
 import { healthMetrics, type HealthMetric } from '@/features/dashboard/mockDashboard'
 import { useAppSelector } from '@/store/hooks'
 import { selectIsAuthenticated } from '@/features/auth/authSlice'
-import { useGetComparisonQuery, useGetAnalysisQuery } from '@/features/scan/analysisApi'
+import { useGetComparisonQuery, useGetAnalysisQuery, type ParameterKey } from '@/features/scan/analysisApi'
+
+const GLANCE_TO_PARAM: Record<string, ParameterKey> = {
+  'gum-health': 'gumInflammation',
+  enamel: 'enamelWear',
+  'oral-tissue': 'tissueAppearance',
+  'plaque-risk': 'plaqueExtent',
+  'gum-line': 'gumMarginRecession',
+  'tartar-stain': 'calculusStain',
+}
 
 const emptySignedInMetrics: HealthMetric[] = [
   {
@@ -81,11 +90,18 @@ export function GlanceSection() {
     <section className="flex flex-col gap-md">
       <SectionHeader title="Your mouth at a glance" meta={`${metrics.length} areas tracked`} />
       <ul className="grid grid-cols-2 gap-md">
-        {metrics.map((metric) => (
-          <li key={metric.id}>
-            <HealthMetricCard metric={metric} />
-          </li>
-        ))}
+        {metrics.map((metric) => {
+          const paramKey = GLANCE_TO_PARAM[metric.id]
+          const severity =
+            isAuthenticated && analysis?.status === 'ready' && paramKey
+              ? analysis.parameters.find((p) => p.parameter === paramKey)?.severity
+              : undefined
+          return (
+            <li key={metric.id}>
+              <HealthMetricCard metric={metric} severity={severity} />
+            </li>
+          )
+        })}
       </ul>
     </section>
   )

@@ -148,7 +148,10 @@ function isMildObservation(description: string): boolean {
   )
 }
 
-function getSpectrumMarker(metric: HealthMetric): {
+function getSpectrumMarker(
+  metric: HealthMetric,
+  severity?: number,
+): {
   isNotScanned: boolean
   isWatch: boolean
   isImproving: boolean
@@ -166,9 +169,15 @@ function getSpectrumMarker(metric: HealthMetric): {
   const isMild = !isNotScanned && !isWatch && isMildObservation(metric.description)
   const isMarked =
     isWatch &&
-    (metric.description.toLowerCase().includes('pronounced') ||
+    ((typeof severity === 'number' && severity >= 70) ||
+      metric.description.toLowerCase().includes('pronounced') ||
       metric.description.toLowerCase().includes('heavy') ||
       metric.description.toLowerCase().includes('distinct'))
+
+  // Use the real-time per-area severity (0 = 100% healthy on right, 100 = 0% on left)
+  // clamped to [8, 94] so the circular thumb stays cleanly inside the track.
+  const realPct =
+    typeof severity === 'number' ? Math.max(8, Math.min(94, Math.round(100 - severity))) : null
 
   if (isNotScanned) {
     return {
@@ -189,7 +198,7 @@ function getSpectrumMarker(metric: HealthMetric): {
       isNotScanned: false,
       isWatch: true,
       isImproving: false,
-      positionPct: 14,
+      positionPct: realPct ?? 14,
       dotClass: 'animate-pulse bg-rose-500',
       textClass: 'text-rose-700',
       pointerBorder: 'border-rose-600',
@@ -203,7 +212,7 @@ function getSpectrumMarker(metric: HealthMetric): {
       isNotScanned: false,
       isWatch: true,
       isImproving: false,
-      positionPct: 38,
+      positionPct: realPct ?? 38,
       dotClass: 'animate-pulse bg-orange-500',
       textClass: 'text-orange-700',
       pointerBorder: 'border-orange-500',
@@ -217,7 +226,7 @@ function getSpectrumMarker(metric: HealthMetric): {
       isNotScanned: false,
       isWatch: false,
       isImproving: true,
-      positionPct: isMild ? 78 : 92,
+      positionPct: realPct ?? (isMild ? 78 : 92),
       dotClass: 'bg-emerald-500',
       textClass: 'text-emerald-700',
       pointerBorder: 'border-emerald-600',
@@ -231,7 +240,7 @@ function getSpectrumMarker(metric: HealthMetric): {
       isNotScanned: false,
       isWatch: false,
       isImproving: false,
-      positionPct: isMild ? 74 : 90,
+      positionPct: realPct ?? (isMild ? 68 : 86),
       dotClass: 'bg-teal-500',
       textClass: 'text-teal-700',
       pointerBorder: 'border-teal-600',
@@ -244,7 +253,7 @@ function getSpectrumMarker(metric: HealthMetric): {
     isNotScanned: false,
     isWatch: false,
     isImproving: false,
-    positionPct: isMild ? 74 : 92,
+    positionPct: realPct ?? (isMild ? 76 : 92),
     dotClass: 'bg-emerald-500',
     textClass: 'text-emerald-700',
     pointerBorder: 'border-emerald-600',
@@ -257,11 +266,17 @@ function getSpectrumMarker(metric: HealthMetric): {
  * Rich, visual tile in the "Your mouth at a glance" 6-area grid:
  * - Distinct colour-coded icon & top accent strip per area
  * - Medical gradient spectrum bar (Red → Yellow → Green) with a live pointer
- *   showing where this area currently sits
+ *   driven by the area's real-time scan score
  */
-export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
+export function HealthMetricCard({
+  metric,
+  severity,
+}: {
+  metric: HealthMetric
+  severity?: number
+}) {
   const visual = getAreaVisual(metric)
-  const marker = getSpectrumMarker(metric)
+  const marker = getSpectrumMarker(metric, severity)
 
   return (
     <Card

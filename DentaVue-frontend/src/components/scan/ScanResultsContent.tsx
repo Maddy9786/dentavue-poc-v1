@@ -13,6 +13,16 @@ import { AnnotatedScanCarousel } from '@/components/scan/AnnotatedScanCarousel'
 import { ComingSoonButton } from '@/components/scan/ComingSoonButton'
 import { ScanUnclearNotice } from '@/components/scan/ScanUnclearNotice'
 import { useScanAnalysis } from '@/features/scan/useScanAnalysis'
+import type { ParameterKey } from '@/features/scan/analysisApi'
+
+const GLANCE_TO_PARAM: Record<string, ParameterKey> = {
+  'gum-health': 'gumInflammation',
+  enamel: 'enamelWear',
+  'oral-tissue': 'tissueAppearance',
+  'plaque-risk': 'plaqueExtent',
+  'gum-line': 'gumMarginRecession',
+  'tartar-stain': 'calculusStain',
+}
 import { useGetScansQuery } from '@/features/scan/scansApi'
 import { selectIsAuthenticated } from '@/features/auth/authSlice'
 import { useAppSelector } from '@/store/hooks'
@@ -202,11 +212,18 @@ export function ScanResultsContent() {
       <section className="flex flex-col gap-md">
         <SectionHeader title="Your mouth at a glance" meta={`${glance.length} areas tracked`} />
         <ul className="grid grid-cols-2 gap-md">
-          {glance.map((item) => (
-            <li key={item.id}>
-              <HealthMetricCard metric={item} />
-            </li>
-          ))}
+          {glance.map((item) => {
+            const paramKey = GLANCE_TO_PARAM[item.id]
+            const severity =
+              analysis?.status === 'ready' && paramKey
+                ? analysis.parameters.find((p) => p.parameter === paramKey)?.severity
+                : undefined
+            return (
+              <li key={item.id}>
+                <HealthMetricCard metric={item} severity={severity} />
+              </li>
+            )
+          })}
         </ul>
       </section>
 
