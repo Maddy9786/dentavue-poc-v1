@@ -148,37 +148,126 @@ function isMildObservation(description: string): boolean {
   )
 }
 
-/**
- * Rich, visual tile in the "Your mouth at a glance" 6-area grid:
- * - Distinct colour-coded icon, top accent strip, and matching bottom indication bar
- * - 4-segment visual health meter (4/4 = clear, 3/4 = mild note, 2/4 = needs care, 0/4 = not scanned)
- */
-export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
-  const visual = getAreaVisual(metric)
+function getSpectrumMarker(metric: HealthMetric): {
+  isNotScanned: boolean
+  isWatch: boolean
+  isImproving: boolean
+  positionPct: number
+  dotClass: string
+  textClass: string
+  pointerBorder: string
+  pillClass: string
+  pillLabel: string
+} {
   const isNotScanned = metric.status === 'Not scanned'
   const isWatch = metric.tone === 'watch' || metric.status === 'Watch'
   const isImproving = metric.status === 'Improving'
+  const isNormal = metric.status === 'Normal'
   const isMild = !isNotScanned && !isWatch && isMildObservation(metric.description)
+  const isMarked =
+    isWatch &&
+    (metric.description.toLowerCase().includes('pronounced') ||
+      metric.description.toLowerCase().includes('heavy') ||
+      metric.description.toLowerCase().includes('distinct'))
 
-  const filledBars = isNotScanned ? 0 : isWatch ? 2 : isMild ? 3 : 4
+  if (isNotScanned) {
+    return {
+      isNotScanned: true,
+      isWatch: false,
+      isImproving: false,
+      positionPct: 0,
+      dotClass: 'bg-foreground-secondary/40',
+      textClass: 'text-foreground-secondary',
+      pointerBorder: 'border-foreground-secondary',
+      pillClass: 'bg-border/70 text-foreground-secondary',
+      pillLabel: 'Awaiting scan',
+    }
+  }
 
-  const trendLabel = isNotScanned
-    ? 'Awaiting scan'
-    : isImproving
-      ? `↑ ${metric.trend === 'stable' ? 'Improving' : `+${metric.trend}`}`
-      : isWatch
-        ? 'Needs care'
-        : isMild
-          ? 'Mild note'
-          : metric.trend === 'stable'
-            ? '✓ Clear'
-            : `↑ +${metric.trend}`
+  if (isMarked) {
+    return {
+      isNotScanned: false,
+      isWatch: true,
+      isImproving: false,
+      positionPct: 14,
+      dotClass: 'animate-pulse bg-rose-500',
+      textClass: 'text-rose-700',
+      pointerBorder: 'border-rose-600',
+      pillClass: 'bg-rose-100 text-rose-800',
+      pillLabel: 'Attention',
+    }
+  }
+
+  if (isWatch) {
+    return {
+      isNotScanned: false,
+      isWatch: true,
+      isImproving: false,
+      positionPct: 38,
+      dotClass: 'animate-pulse bg-orange-500',
+      textClass: 'text-orange-700',
+      pointerBorder: 'border-orange-500',
+      pillClass: 'bg-amber-100 text-amber-800',
+      pillLabel: 'Needs care',
+    }
+  }
+
+  if (isImproving) {
+    return {
+      isNotScanned: false,
+      isWatch: false,
+      isImproving: true,
+      positionPct: isMild ? 78 : 92,
+      dotClass: 'bg-emerald-500',
+      textClass: 'text-emerald-700',
+      pointerBorder: 'border-emerald-600',
+      pillClass: 'bg-emerald-100 text-emerald-800',
+      pillLabel: `↑ ${metric.trend === 'stable' ? 'Improving' : `+${metric.trend}`}`,
+    }
+  }
+
+  if (isNormal) {
+    return {
+      isNotScanned: false,
+      isWatch: false,
+      isImproving: false,
+      positionPct: isMild ? 74 : 90,
+      dotClass: 'bg-teal-500',
+      textClass: 'text-teal-700',
+      pointerBorder: 'border-teal-600',
+      pillClass: 'bg-teal-50 text-teal-700',
+      pillLabel: metric.trend === 'stable' ? '✓ Normal' : `↑ +${metric.trend}`,
+    }
+  }
+
+  return {
+    isNotScanned: false,
+    isWatch: false,
+    isImproving: false,
+    positionPct: isMild ? 74 : 92,
+    dotClass: 'bg-emerald-500',
+    textClass: 'text-emerald-700',
+    pointerBorder: 'border-emerald-600',
+    pillClass: 'bg-emerald-100 text-emerald-800',
+    pillLabel: metric.trend === 'stable' ? '✓ Healthy' : `↑ +${metric.trend}`,
+  }
+}
+
+/**
+ * Rich, visual tile in the "Your mouth at a glance" 6-area grid:
+ * - Distinct colour-coded icon & top accent strip per area
+ * - Medical gradient spectrum bar (Red → Yellow → Green) with a live pointer
+ *   showing where this area currently sits
+ */
+export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
+  const visual = getAreaVisual(metric)
+  const marker = getSpectrumMarker(metric)
 
   return (
     <Card
       className={cn(
         'relative flex h-full flex-col gap-sm overflow-hidden p-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
-        isWatch
+        marker.isWatch
           ? 'border border-amber-300/80 bg-gradient-to-b from-amber-50/40 to-surface'
           : 'border border-border/80',
       )}
@@ -188,15 +277,15 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
         aria-hidden="true"
         className={cn(
           'absolute inset-x-0 top-0 h-1 bg-gradient-to-r',
-          isNotScanned
+          marker.isNotScanned
             ? 'from-border to-border'
-            : isWatch
+            : marker.isWatch
               ? 'from-amber-400 to-orange-500'
               : visual.accentBar,
         )}
       />
 
-      {/* Icon chip + category badge */}
+      {/* Icon chip + status badge */}
       <div className="flex items-center justify-between gap-xs pt-2xs">
         <span
           aria-hidden="true"
@@ -212,16 +301,10 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
         <span
           className={cn(
             'rounded-full px-sm py-2xs text-[11px] font-semibold tracking-wide',
-            isNotScanned
-              ? 'bg-border/70 text-foreground-secondary'
-              : isWatch
-                ? 'bg-amber-100 text-amber-800'
-                : isImproving
-                  ? 'bg-emerald-100 text-emerald-800'
-                  : `${visual.pillBg} ${visual.pillText}`,
+            marker.pillClass,
           )}
         >
-          {trendLabel}
+          {marker.pillLabel}
         </span>
       </div>
 
@@ -231,58 +314,32 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
         <p className="text-body leading-snug text-foreground-secondary">{metric.description}</p>
       </div>
 
-      {/* 4-Segment Visual Health Meter + Status Dot */}
+      {/* Medical Spectrum Bar (Red → Yellow → Green) + Live Pointer */}
       <div className="mt-auto flex flex-col gap-xs pt-xs">
-        <div className="flex items-center gap-1" aria-hidden="true">
-          {[0, 1, 2, 3].map((barIdx) => {
-            const active = barIdx < filledBars
-            return (
+        <div className="relative flex h-3.5 items-center" aria-hidden="true">
+          {marker.isNotScanned ? (
+            <div className="h-2 w-full rounded-full bg-border" />
+          ) : (
+            <>
+              <div className="h-2 w-full rounded-full bg-gradient-to-r from-rose-500 via-amber-400 to-emerald-500 opacity-90" />
               <span
-                key={barIdx}
                 className={cn(
-                  'h-1.5 flex-1 rounded-full transition-colors',
-                  !active
-                    ? 'bg-border'
-                    : isWatch
-                      ? 'bg-amber-400'
-                      : isImproving
-                        ? 'bg-emerald-500'
-                        : visual.barBg,
+                  'absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 bg-surface shadow-sm transition-all duration-300',
+                  marker.pointerBorder,
                 )}
+                style={{ left: `${marker.positionPct}%` }}
               />
-            )
-          })}
+            </>
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-xs">
           <span className="inline-flex items-center gap-xs">
             <span
               aria-hidden="true"
-              className={cn(
-                'size-2 shrink-0 rounded-full',
-                isNotScanned
-                  ? 'bg-foreground-secondary/40'
-                  : isWatch
-                    ? 'animate-pulse bg-amber-500'
-                    : isImproving
-                      ? 'bg-emerald-500'
-                      : visual.dotBg,
-              )}
+              className={cn('size-2 shrink-0 rounded-full', marker.dotClass)}
             />
-            <span
-              className={cn(
-                'text-body font-semibold',
-                isNotScanned
-                  ? 'text-foreground-secondary'
-                  : isWatch
-                    ? 'text-amber-700'
-                    : isImproving
-                      ? 'text-emerald-700'
-                      : visual.statusText,
-              )}
-            >
-              {metric.status}
-            </span>
+            <span className={cn('text-body font-semibold', marker.textClass)}>{metric.status}</span>
           </span>
 
           <span className="text-[11px] font-medium text-foreground-secondary">
