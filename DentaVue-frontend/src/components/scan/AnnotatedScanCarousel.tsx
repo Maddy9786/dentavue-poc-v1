@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/cn'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { useAppSelector } from '@/store/hooks'
@@ -10,6 +10,14 @@ import { useGetScansQuery } from '@/features/scan/scansApi'
 import { demoScans, BLANK_SCAN_IMAGE } from '@/features/scan/scanDisplay'
 import { useScanAnalysis } from '@/features/scan/useScanAnalysis'
 import ArrowRightIcon from '@/icons/arrow-right.svg'
+
+type ViewMode = 'natural' | 'contrast' | 'clinical-edge'
+
+const VIEW_MODES: { id: ViewMode; label: string }[] = [
+  { id: 'natural', label: 'Natural' },
+  { id: 'contrast', label: 'High Contrast' },
+  { id: 'clinical-edge', label: 'Clinical Edge' },
+]
 
 /**
  * "Annotated scan" — a carousel of the latest scan's uploaded images (front teeth
@@ -38,6 +46,9 @@ export function AnnotatedScanCarousel() {
   const { data } = useGetScansQuery(undefined, { skip: !isAuthenticated })
   const { analysis } = useScanAnalysis()
   const [index, setIndex] = useState(0)
+  const [viewMode, setViewMode] = useState<ViewMode>('natural')
+  const [edgeDataUrl, setEdgeDataUrl] = useState<string | null>(null)
+  const imgRef = useRef<HTMLImageElement | null>(null)
 
   const images: string[] = (() => {
     // This session's captured shots first — the four the user just took.
@@ -62,17 +73,123 @@ export function AnnotatedScanCarousel() {
     (annotation) => annotation.position === safeIndex,
   )
 
+  // Compute monochrome Sobel + high-contrast clinical edge overlay when active
+  useEffect(() => {
+    if (viewMode !== 'clinical-edge') {
+      setEdgeDataUrl(null)
+      return
+    }
+    let cancelled = false
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      if (cancelled) return
+      try {
+        const w = Math.min(640, img.naturalWidth || 640)
+        const h = Math.round((w / (img.naturalWidth || 1)) * (img.naturalHeight || 1)) || 420
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return
+        ctx.drawImage(img, 0, 0, w, h)
+        const src = ctx.getImageData(0, 0, w, h)
+        const data = src.data
+        const lum = new Float32Array(w * h)
+        for (let i = 0; i < w * h; i += 1) {
+          const p = i * 4
+          lum[i] = 0.299 * data[p]! + 0.587 * data[p + 1]! + 0.114 * data[p + 2]!
+        }
+        const out = ctx.createImageData(w, h)
+        for (let y = 1; y < h - 1; y += 1) {
+          for (let x = 1; x < w - 1; x += 1) {
+            const idx = y * w + x
+            const gx =
+              -lum[idx - w - 1]! +
+              lum[idx - w + 1]! -
+              2 * lum[idx - 1]! +
+              2 * lum[idx + 1]! -
+              lum[idx + w - 1]! +
+              lum[idx + w + 1]!
+            const gy =
+              -lum[idx - w - 1]! -
+              2 * lum[idx - w]! -
+              lum[idx - w + 1]! +
+              lum[idx + w - 1]! +
+              2 * lum[idx + w]! +
+              lum[idx + w + 1]!
+            const edge = Math.min(255, Math.sqrt(gx * gx + gy * gy) * 1.15)
+            // Blend radiograph-style contrast-stretched luminance with crisp white edge contours
+            const stretched = Math.max(0, Math.min(255, (lum[idx]! - 128) * 1.45 + 128))
+            const val = Math.min(255, stretched * 0.72 + edge * 0.65)
+            const p = idx * 4
+            // Subtle cool radiograph blue-slate tint
+            out.data[p] = Math.max(0, Math.round(val * 0.92))
+            out.data[p + 1] = Math.min(255, Math.round(val * 0.98))
+            out.data[p + 2] = Math.min(255, Math.round(val * 1.06))
+            out.data[p + 3] = 255
+          }
+        }
+        ctx.putImageData(out, 0, 0)
+        if (!cancelled) setEdgeDataUrl(canvas.toDataURL('image/jpeg', 0.9))
+      } catch {
+        // CORS-tainted signed URLs fall back cleanly to CSS filter below
+        if (!cancelled) setEdgeDataUrl(null)
+      }
+    }
+    img.onerror = () => {
+      if (!cancelled) setEdgeDataUrl(null)
+    }
+    img.src = current
+    return () => {
+      cancelled = true
+    }
+  }, [viewMode, current])
+
   return (
     <section className="flex flex-col gap-md">
-      <SectionHeader title="Annotated scan" meta={`View all ${count}`} />
+      <div className="flex flex-wrap items-center justify-between gap-sm">
+        <SectionHeader title="Annotated scan" meta={`View all ${count}`} />
+        <div
+          role="group"
+          aria-label="Photo inspection mode"
+          className="inline-flex rounded-full border border-border bg-surface p-0.5 shadow-2xs"
+        >
+          {VIEW_MODES.map((mode) => (
+            <button
+              key={mode.id}
+              type="button"
+              onClick={() => setViewMode(mode.id)}
+              className={cn(
+                'rounded-full px-sm py-2xs text-[11px] font-semibold transition-colors',
+                viewMode === mode.id
+                  ? 'bg-foreground text-surface'
+                  : 'text-foreground-secondary hover:text-foreground',
+              )}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="relative aspect-[3/2] overflow-hidden rounded-4 bg-border">
         {/* eslint-disable-next-line @next/next/no-img-element -- a signed URL or a data: URL (fresh capture), not a static asset. */}
         <img
-          src={current}
+          ref={imgRef}
+          src={viewMode === 'clinical-edge' && edgeDataUrl ? edgeDataUrl : current}
           alt={`Your scan photo ${safeIndex + 1} of ${count}`}
-          className="h-full w-full object-cover"
+          className={cn(
+            'h-full w-full object-cover transition-all duration-200',
+            viewMode === 'contrast' && 'contrast-125 saturate-125 brightness-105',
+            viewMode === 'clinical-edge' && !edgeDataUrl && 'grayscale contrast-200 brightness-95',
+          )}
         />
+        {viewMode === 'clinical-edge' && (
+          <span className="absolute left-sm top-sm rounded-full bg-foreground/80 px-sm py-2xs text-[10px] font-medium text-surface backdrop-blur-xs">
+            Surface Edge Contrast · Not a medical X-ray
+          </span>
+        )}
 
         {/*
           The AI's regions. Positioned purely as percentages of the container,

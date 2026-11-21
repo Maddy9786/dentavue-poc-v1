@@ -10,6 +10,7 @@ import { HealthMetricCard } from '@/components/dashboard/HealthMetricCard'
 import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { CheckCircleGlyph, AlertCircleGlyph, AlertTriangleGlyph } from '@/components/ui/StatusGlyphs'
 import { AnnotatedScanCarousel } from '@/components/scan/AnnotatedScanCarousel'
+import { ToothArchMap } from '@/components/scan/ToothArchMap'
 import { ComingSoonButton } from '@/components/scan/ComingSoonButton'
 import { RescanReminderButton } from '@/components/insight/RescanReminderButton'
 import { ScanUnclearNotice } from '@/components/scan/ScanUnclearNotice'
@@ -208,6 +209,12 @@ export function ScanResultsContent() {
 
       {/* Annotated scan — the real uploaded images, with the AI's regions drawn. */}
       <AnnotatedScanCarousel />
+
+      {/* Interactive Upper & Lower Mouth Map */}
+      <ToothArchMap
+        annotations={analysis?.annotations ?? []}
+        parameters={analysis?.parameters ?? []}
+      />
 
       {/* Your mouth at a glance. */}
       <section className="flex flex-col gap-md">
