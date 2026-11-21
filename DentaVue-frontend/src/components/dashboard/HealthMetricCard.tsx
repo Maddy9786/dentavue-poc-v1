@@ -7,6 +7,11 @@ interface AreaVisualConfig {
   chipBg: string
   chipText: string
   accentBar: string
+  pillBg: string
+  pillText: string
+  barBg: string
+  dotBg: string
+  statusText: string
   categoryTag: string
   icon: ReactNode
 }
@@ -19,6 +24,11 @@ function getAreaVisual(metric: HealthMetric): AreaVisualConfig {
       chipBg: 'bg-indigo-50 border border-indigo-200/70',
       chipText: 'text-indigo-600',
       accentBar: 'from-indigo-500 to-blue-500',
+      pillBg: 'bg-indigo-50',
+      pillText: 'text-indigo-700',
+      barBg: 'bg-indigo-500',
+      dotBg: 'bg-indigo-500',
+      statusText: 'text-indigo-700',
       categoryTag: 'Alignment',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" className="size-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -35,6 +45,11 @@ function getAreaVisual(metric: HealthMetric): AreaVisualConfig {
       chipBg: 'bg-rose-50 border border-rose-200/70',
       chipText: 'text-rose-600',
       accentBar: 'from-rose-500 to-pink-500',
+      pillBg: 'bg-rose-50',
+      pillText: 'text-rose-700',
+      barBg: 'bg-rose-500',
+      dotBg: 'bg-rose-500',
+      statusText: 'text-rose-700',
       categoryTag: 'Gums',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" className="size-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -49,6 +64,11 @@ function getAreaVisual(metric: HealthMetric): AreaVisualConfig {
       chipBg: 'bg-sky-50 border border-sky-200/70',
       chipText: 'text-sky-600',
       accentBar: 'from-sky-500 to-blue-600',
+      pillBg: 'bg-sky-50',
+      pillText: 'text-sky-700',
+      barBg: 'bg-sky-500',
+      dotBg: 'bg-sky-500',
+      statusText: 'text-sky-700',
       categoryTag: 'Protection',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" className="size-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -64,6 +84,11 @@ function getAreaVisual(metric: HealthMetric): AreaVisualConfig {
       chipBg: 'bg-purple-50 border border-purple-200/70',
       chipText: 'text-purple-600',
       accentBar: 'from-purple-500 to-violet-600',
+      pillBg: 'bg-purple-50',
+      pillText: 'text-purple-700',
+      barBg: 'bg-purple-500',
+      dotBg: 'bg-purple-500',
+      statusText: 'text-purple-700',
       categoryTag: 'Freshness',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" className="size-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -79,6 +104,11 @@ function getAreaVisual(metric: HealthMetric): AreaVisualConfig {
       chipBg: 'bg-amber-50 border border-amber-200/70',
       chipText: 'text-amber-600',
       accentBar: 'from-amber-500 to-orange-500',
+      pillBg: 'bg-amber-50',
+      pillText: 'text-amber-700',
+      barBg: 'bg-amber-500',
+      dotBg: 'bg-amber-500',
+      statusText: 'text-amber-700',
       categoryTag: 'Surface Shine',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" className="size-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -93,6 +123,11 @@ function getAreaVisual(metric: HealthMetric): AreaVisualConfig {
     chipBg: 'bg-teal-50 border border-teal-200/70',
     chipText: 'text-teal-600',
     accentBar: 'from-teal-500 to-emerald-500',
+    pillBg: 'bg-teal-50',
+    pillText: 'text-teal-700',
+    barBg: 'bg-teal-500',
+    dotBg: 'bg-teal-500',
+    statusText: 'text-teal-700',
     categoryTag: 'Daily Clean',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" className="size-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -102,19 +137,30 @@ function getAreaVisual(metric: HealthMetric): AreaVisualConfig {
   }
 }
 
+function isMildObservation(description: string): boolean {
+  const text = description.toLowerCase()
+  return (
+    text.includes('slight') ||
+    text.includes('minor') ||
+    text.includes('light ') ||
+    text.includes('thin film') ||
+    text.includes('trace')
+  )
+}
+
 /**
  * Rich, visual tile in the "Your mouth at a glance" 6-area grid:
- * - Distinct colour-coded custom icon & category tag for each of the 6 areas
- * - 4-segment visual health meter showing status strength at a glance
- * - Colour-differentiated status pill (Amber for Watch, Emerald for Improving, Teal for Healthy)
+ * - Distinct colour-coded icon, top accent strip, and matching bottom indication bar
+ * - 4-segment visual health meter (4/4 = clear, 3/4 = mild note, 2/4 = needs care, 0/4 = not scanned)
  */
 export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
   const visual = getAreaVisual(metric)
   const isNotScanned = metric.status === 'Not scanned'
   const isWatch = metric.tone === 'watch' || metric.status === 'Watch'
   const isImproving = metric.status === 'Improving'
+  const isMild = !isNotScanned && !isWatch && isMildObservation(metric.description)
 
-  const filledBars = isNotScanned ? 0 : isWatch ? 2 : 4
+  const filledBars = isNotScanned ? 0 : isWatch ? 2 : isMild ? 3 : 4
 
   const trendLabel = isNotScanned
     ? 'Awaiting scan'
@@ -122,9 +168,11 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
       ? `↑ ${metric.trend === 'stable' ? 'Improving' : `+${metric.trend}`}`
       : isWatch
         ? 'Needs care'
-        : metric.trend === 'stable'
-          ? '✓ Steady'
-          : `↑ +${metric.trend}`
+        : isMild
+          ? 'Mild note'
+          : metric.trend === 'stable'
+            ? '✓ Clear'
+            : `↑ +${metric.trend}`
 
   return (
     <Card
@@ -170,7 +218,7 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
                 ? 'bg-amber-100 text-amber-800'
                 : isImproving
                   ? 'bg-emerald-100 text-emerald-800'
-                  : 'bg-teal-50 text-teal-700',
+                  : `${visual.pillBg} ${visual.pillText}`,
           )}
         >
           {trendLabel}
@@ -199,7 +247,7 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
                       ? 'bg-amber-400'
                       : isImproving
                         ? 'bg-emerald-500'
-                        : 'bg-secondary',
+                        : visual.barBg,
                 )}
               />
             )
@@ -218,7 +266,7 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
                     ? 'animate-pulse bg-amber-500'
                     : isImproving
                       ? 'bg-emerald-500'
-                      : 'bg-secondary',
+                      : visual.dotBg,
               )}
             />
             <span
@@ -230,7 +278,7 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
                     ? 'text-amber-700'
                     : isImproving
                       ? 'text-emerald-700'
-                      : 'text-secondary',
+                      : visual.statusText,
               )}
             >
               {metric.status}

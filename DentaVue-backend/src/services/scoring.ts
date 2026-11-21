@@ -470,7 +470,7 @@ function annotationLocationsFor(parameter: ParameterKey, annotations: Annotation
   for (const match of matches) {
     const frameName = FRAME_AREA_NAMES[match.position] ?? 'mouth photo'
     const label = friendlyText(match.label.trim())
-    const phrase = label.toLowerCase().includes(frameName) ? label : `${frameName} (${label})`
+    const phrase = label.toLowerCase().includes(frameName) ? label : `${frameName} · ${label}`
     if (!seen.has(phrase.toLowerCase())) {
       seen.add(phrase.toLowerCase())
       result.push(phrase)
