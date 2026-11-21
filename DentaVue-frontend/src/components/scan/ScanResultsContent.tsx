@@ -11,6 +11,7 @@ import { SectionHeader } from '@/components/dashboard/SectionHeader'
 import { CheckCircleGlyph, AlertCircleGlyph, AlertTriangleGlyph } from '@/components/ui/StatusGlyphs'
 import { AnnotatedScanCarousel } from '@/components/scan/AnnotatedScanCarousel'
 import { ComingSoonButton } from '@/components/scan/ComingSoonButton'
+import { RescanReminderButton } from '@/components/insight/RescanReminderButton'
 import { ScanUnclearNotice } from '@/components/scan/ScanUnclearNotice'
 import { useScanAnalysis } from '@/features/scan/useScanAnalysis'
 import type { ParameterKey } from '@/features/scan/analysisApi'
@@ -273,12 +274,11 @@ export function ScanResultsContent() {
           </div>
           <div className="flex gap-sm">
             <ComingSoonButton label="Book a specialist" message={COMING_SOON} variant="secondary" whiteLabel />
-            {/* Stroke fill (#ECE7DF = --color-border) per design. */}
-            <ComingSoonButton
+            <RescanReminderButton
               label="Remind me"
-              message={COMING_SOON}
               variant="surface"
               className="bg-border text-foreground-secondary shadow-none"
+              note={`Follow-up check for: ${monitor.title}`}
             />
           </div>
         </Card>
