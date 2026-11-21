@@ -39,7 +39,7 @@ export function GreetingHeader() {
           aria-label={
             activeCount > 0 ? `Check-in reminders (${activeCount} active)` : 'Set a check-in reminder'
           }
-          className="relative flex size-9 items-center justify-center rounded-full bg-surface shadow-drop transition-transform active:scale-95 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
+          className="relative flex size-10 items-center justify-center rounded-full border-2 border-secondary/35 bg-surface shadow-drop ring-2 ring-surface transition-all hover:border-secondary/60 active:scale-95 focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           <BellIcon aria-hidden="true" className="size-5 text-foreground" />
           {activeCount > 0 && (
