@@ -401,7 +401,7 @@ describe('deriveComparison', () => {
     // none → 100 (clear), mild → 75. A number the screen shows, not a band word.
     expect(gum.from).toBe('100')
     expect(gum.to).toBe('75')
-    expect(gum.label).toBe('Gum health index')
+    expect(gum.label).toBe('Gum Health')
     // The index moves the same direction as health: worse band → lower number.
     expect(Number(gum.to)).toBeLessThan(Number(gum.from))
   })

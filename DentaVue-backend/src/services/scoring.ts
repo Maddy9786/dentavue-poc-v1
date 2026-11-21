@@ -664,12 +664,12 @@ export function approximateDepth(band: Band): string {
 const COMPARE_ROWS: { id: string; parameter: ParameterKey; label: string }[] = [
   // Framed as a health INDEX (high = healthy) so the number reads the right way:
   // the row shows parameterIndex(band), and "up" is good, matching the badge.
-  { id: 'gum-inflammation', parameter: 'gumInflammation', label: 'Gum health index' },
-  { id: 'plaque', parameter: 'plaqueExtent', label: 'Plaque control' },
-  { id: 'depth', parameter: 'gumMarginRecession', label: 'Gum margin depth (est.)' },
-  { id: 'tissue', parameter: 'tissueAppearance', label: 'Oral tissue' },
-  { id: 'enamel', parameter: 'enamelWear', label: 'Enamel condition' },
-  { id: 'tartar-stain', parameter: 'calculusStain', label: 'Tartar & stain control' },
+  { id: 'gum-inflammation', parameter: 'gumInflammation', label: 'Gum Health' },
+  { id: 'plaque', parameter: 'plaqueExtent', label: 'Tooth Cleanliness' },
+  { id: 'depth', parameter: 'gumMarginRecession', label: 'Gum Line (est.)' },
+  { id: 'tissue', parameter: 'tissueAppearance', label: 'Tongue & Cheeks' },
+  { id: 'enamel', parameter: 'enamelWear', label: 'Tooth Strength' },
+  { id: 'tartar-stain', parameter: 'calculusStain', label: 'Stains & Tartar' },
 ]
 
 /**

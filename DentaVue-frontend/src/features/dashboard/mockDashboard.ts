@@ -316,12 +316,12 @@ export interface CompareTwoView {
 export const compareTwo: CompareTwoView = {
   note: 'Nice progress — gum redness along the lower line has visibly reduced in two weeks.',
   metrics: [
-    { id: 'gum-index', label: 'Gum health index', from: '72', to: '64', badge: 'Improving', tone: 'improving' },
-    { id: 'plaque', label: 'Plaque control', from: '72', to: '64', badge: 'Stable', tone: 'stable' },
-    { id: 'pocket', label: 'Gum margin depth (est.)', from: '~2 mm', to: '~2 mm', badge: 'Stable', tone: 'stable' },
-    { id: 'tissue', label: 'Oral tissue', from: '100', to: '100', badge: 'Stable', tone: 'stable' },
-    { id: 'enamel', label: 'Enamel condition', from: '75', to: '75', badge: 'Stable', tone: 'stable' },
-    { id: 'tartar-stain', label: 'Tartar & stain control', from: '75', to: '100', badge: 'Improving', tone: 'improving' },
+    { id: 'gum-index', label: 'Gum Health', from: '75', to: '100', badge: 'Improving', tone: 'improving' },
+    { id: 'plaque', label: 'Tooth Cleanliness', from: '75', to: '75', badge: 'Stable', tone: 'stable' },
+    { id: 'pocket', label: 'Gum Line (est.)', from: '~2 mm', to: '~2 mm', badge: 'Stable', tone: 'stable' },
+    { id: 'tissue', label: 'Tongue & Cheeks', from: '100', to: '100', badge: 'Stable', tone: 'stable' },
+    { id: 'enamel', label: 'Tooth Strength', from: '75', to: '75', badge: 'Stable', tone: 'stable' },
+    { id: 'tartar-stain', label: 'Stains & Tartar', from: '75', to: '100', badge: 'Improving', tone: 'improving' },
   ],
   overall: {
     title: 'Overall · 60-day change',
