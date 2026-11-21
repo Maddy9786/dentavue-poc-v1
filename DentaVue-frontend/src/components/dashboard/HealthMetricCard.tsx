@@ -149,146 +149,38 @@ function isMildObservation(description: string): boolean {
 }
 
 /**
- * Medical-style real-time status palette:
- *   - Not scanned (0/4): Neutral Grey
- *   - Improving / Clear Healthy (4/4): Emerald Green
- *   - Normal (4/4): Teal
- *   - Mild note (3/4): Warm Yellow / Gold
- *   - Watch / Moderate (2/4): Orange
- *   - Attention / Marked (1/4): Coral Red
- */
-function getMedicalStatusStyle(metric: HealthMetric) {
-  const isNotScanned = metric.status === 'Not scanned'
-  const isWatch = metric.tone === 'watch' || metric.status === 'Watch'
-  const isImproving = metric.status === 'Improving'
-  const isNormal = metric.status === 'Normal'
-  const isMild = !isNotScanned && !isWatch && isMildObservation(metric.description)
-  const isMarked =
-    isWatch &&
-    (metric.description.toLowerCase().includes('pronounced') ||
-      metric.description.toLowerCase().includes('heavy') ||
-      metric.description.toLowerCase().includes('distinct'))
-
-  if (isNotScanned) {
-    return {
-      filledBars: 0,
-      barColor: 'bg-border',
-      dotColor: 'bg-foreground-secondary/40',
-      textColor: 'text-foreground-secondary',
-      pillBg: 'bg-border/70',
-      pillText: 'text-foreground-secondary',
-      pillLabel: 'Awaiting scan',
-      statusLabel: 'Not scanned',
-      cardBorder: 'border border-border/80',
-      pulse: false,
-    }
-  }
-
-  if (isMarked) {
-    return {
-      filledBars: 1,
-      barColor: 'bg-rose-500',
-      dotColor: 'bg-rose-500',
-      textColor: 'text-rose-700',
-      pillBg: 'bg-rose-100',
-      pillText: 'text-rose-800',
-      pillLabel: 'Attention',
-      statusLabel: metric.status,
-      cardBorder: 'border border-rose-300/80 bg-gradient-to-b from-rose-50/40 to-surface',
-      pulse: true,
-    }
-  }
-
-  if (isWatch) {
-    return {
-      filledBars: 2,
-      barColor: 'bg-orange-500',
-      dotColor: 'bg-orange-500',
-      textColor: 'text-orange-700',
-      pillBg: 'bg-orange-100',
-      pillText: 'text-orange-800',
-      pillLabel: 'Needs care',
-      statusLabel: metric.status,
-      cardBorder: 'border border-orange-300/80 bg-gradient-to-b from-orange-50/40 to-surface',
-      pulse: true,
-    }
-  }
-
-  if (isImproving) {
-    return {
-      filledBars: isMild ? 3 : 4,
-      barColor: 'bg-emerald-500',
-      dotColor: 'bg-emerald-500',
-      textColor: 'text-emerald-700',
-      pillBg: 'bg-emerald-100',
-      pillText: 'text-emerald-800',
-      pillLabel: `↑ ${metric.trend === 'stable' ? 'Improving' : `+${metric.trend}`}`,
-      statusLabel: 'Improving',
-      cardBorder: 'border border-border/80',
-      pulse: false,
-    }
-  }
-
-  if (isMild) {
-    return {
-      filledBars: 3,
-      barColor: 'bg-amber-400',
-      dotColor: 'bg-amber-500',
-      textColor: 'text-amber-700',
-      pillBg: 'bg-amber-50',
-      pillText: 'text-amber-800',
-      pillLabel: 'Mild note',
-      statusLabel: isNormal ? 'Normal · Mild' : 'Mild note',
-      cardBorder: 'border border-border/80',
-      pulse: false,
-    }
-  }
-
-  if (isNormal) {
-    return {
-      filledBars: 4,
-      barColor: 'bg-teal-500',
-      dotColor: 'bg-teal-500',
-      textColor: 'text-teal-700',
-      pillBg: 'bg-teal-50',
-      pillText: 'text-teal-700',
-      pillLabel: metric.trend === 'stable' ? '✓ Normal' : `↑ +${metric.trend}`,
-      statusLabel: 'Normal',
-      cardBorder: 'border border-border/80',
-      pulse: false,
-    }
-  }
-
-  // Healthy & clear (4/4) → Emerald Green
-  return {
-    filledBars: 4,
-    barColor: 'bg-emerald-500',
-    dotColor: 'bg-emerald-500',
-    textColor: 'text-emerald-700',
-    pillBg: 'bg-emerald-100',
-    pillText: 'text-emerald-800',
-    pillLabel: metric.trend === 'stable' ? '✓ Healthy' : `↑ +${metric.trend}`,
-    statusLabel: 'Healthy',
-    cardBorder: 'border border-border/80',
-    pulse: false,
-  }
-}
-
-/**
  * Rich, visual tile in the "Your mouth at a glance" 6-area grid:
- * - Distinct category icon & top strip for each of the 6 areas
- * - Real-time medical status bar & colour scale (Emerald=Healthy, Teal=Normal,
- *   Amber=Mild note, Orange=Watch, Red=Attention, Grey=Not scanned)
+ * - Distinct colour-coded icon, top accent strip, and matching bottom indication bar
+ * - 4-segment visual health meter (4/4 = clear, 3/4 = mild note, 2/4 = needs care, 0/4 = not scanned)
  */
 export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
   const visual = getAreaVisual(metric)
-  const statusStyle = getMedicalStatusStyle(metric)
+  const isNotScanned = metric.status === 'Not scanned'
+  const isWatch = metric.tone === 'watch' || metric.status === 'Watch'
+  const isImproving = metric.status === 'Improving'
+  const isMild = !isNotScanned && !isWatch && isMildObservation(metric.description)
+
+  const filledBars = isNotScanned ? 0 : isWatch ? 2 : isMild ? 3 : 4
+
+  const trendLabel = isNotScanned
+    ? 'Awaiting scan'
+    : isImproving
+      ? `↑ ${metric.trend === 'stable' ? 'Improving' : `+${metric.trend}`}`
+      : isWatch
+        ? 'Needs care'
+        : isMild
+          ? 'Mild note'
+          : metric.trend === 'stable'
+            ? '✓ Clear'
+            : `↑ +${metric.trend}`
 
   return (
     <Card
       className={cn(
         'relative flex h-full flex-col gap-sm overflow-hidden p-md transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
-        statusStyle.cardBorder,
+        isWatch
+          ? 'border border-amber-300/80 bg-gradient-to-b from-amber-50/40 to-surface'
+          : 'border border-border/80',
       )}
     >
       {/* Top colour accent strip */}
@@ -296,11 +188,15 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
         aria-hidden="true"
         className={cn(
           'absolute inset-x-0 top-0 h-1 bg-gradient-to-r',
-          statusStyle.filledBars === 0 ? 'from-border to-border' : visual.accentBar,
+          isNotScanned
+            ? 'from-border to-border'
+            : isWatch
+              ? 'from-amber-400 to-orange-500'
+              : visual.accentBar,
         )}
       />
 
-      {/* Icon chip + medical status pill */}
+      {/* Icon chip + category badge */}
       <div className="flex items-center justify-between gap-xs pt-2xs">
         <span
           aria-hidden="true"
@@ -316,11 +212,16 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
         <span
           className={cn(
             'rounded-full px-sm py-2xs text-[11px] font-semibold tracking-wide',
-            statusStyle.pillBg,
-            statusStyle.pillText,
+            isNotScanned
+              ? 'bg-border/70 text-foreground-secondary'
+              : isWatch
+                ? 'bg-amber-100 text-amber-800'
+                : isImproving
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : `${visual.pillBg} ${visual.pillText}`,
           )}
         >
-          {statusStyle.pillLabel}
+          {trendLabel}
         </span>
       </div>
 
@@ -330,20 +231,23 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
         <p className="text-body leading-snug text-foreground-secondary">{metric.description}</p>
       </div>
 
-      {/* 4-Segment Medical Status Meter + Real-Time Status Dot */}
+      {/* 4-Segment Visual Health Meter + Status Dot */}
       <div className="mt-auto flex flex-col gap-xs pt-xs">
-        <div
-          className="flex items-center gap-1 rounded-full bg-border/40 p-0.5"
-          aria-hidden="true"
-        >
+        <div className="flex items-center gap-1" aria-hidden="true">
           {[0, 1, 2, 3].map((barIdx) => {
-            const active = barIdx < statusStyle.filledBars
+            const active = barIdx < filledBars
             return (
               <span
                 key={barIdx}
                 className={cn(
-                  'h-1.5 flex-1 rounded-full transition-all duration-300',
-                  active ? statusStyle.barColor : 'bg-transparent',
+                  'h-1.5 flex-1 rounded-full transition-colors',
+                  !active
+                    ? 'bg-border'
+                    : isWatch
+                      ? 'bg-amber-400'
+                      : isImproving
+                        ? 'bg-emerald-500'
+                        : visual.barBg,
                 )}
               />
             )
@@ -356,17 +260,33 @@ export function HealthMetricCard({ metric }: { metric: HealthMetric }) {
               aria-hidden="true"
               className={cn(
                 'size-2 shrink-0 rounded-full',
-                statusStyle.dotColor,
-                statusStyle.pulse && 'animate-pulse',
+                isNotScanned
+                  ? 'bg-foreground-secondary/40'
+                  : isWatch
+                    ? 'animate-pulse bg-amber-500'
+                    : isImproving
+                      ? 'bg-emerald-500'
+                      : visual.dotBg,
               )}
             />
-            <span className={cn('text-body font-semibold', statusStyle.textColor)}>
-              {statusStyle.statusLabel}
+            <span
+              className={cn(
+                'text-body font-semibold',
+                isNotScanned
+                  ? 'text-foreground-secondary'
+                  : isWatch
+                    ? 'text-amber-700'
+                    : isImproving
+                      ? 'text-emerald-700'
+                      : visual.statusText,
+              )}
+            >
+              {metric.status}
             </span>
           </span>
 
-          <span className="text-[11px] font-medium tabular-nums text-foreground-secondary">
-            {visual.categoryTag} · {statusStyle.filledBars}/4
+          <span className="text-[11px] font-medium text-foreground-secondary">
+            {visual.categoryTag}
           </span>
         </div>
       </div>
