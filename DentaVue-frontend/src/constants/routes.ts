@@ -51,6 +51,8 @@ export const ROUTES = {
     riskAssessment: '/guided-scan/risk-assessment',
     /** The full scan-results screen — the last screen of the guided-scan flow. */
     scanResults: '/guided-scan/results',
+    /** Branded 1-page printable / PDF-ready Oral Wellness Report. */
+    scanReport: '/guided-scan/report',
     notifications: '/notifications',
     /** Full AI-insight write-up — reached from "See full analysis" on Home. */
     aiInsight: '/ai-insight',

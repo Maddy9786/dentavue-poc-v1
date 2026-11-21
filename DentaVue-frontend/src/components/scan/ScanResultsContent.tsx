@@ -308,15 +308,12 @@ export function ScanResultsContent() {
       {/* Bottom actions. */}
       <div className="flex flex-col gap-sm pt-lg">
         <ComingSoonButton label="Book a specialist" message={COMING_SOON} variant="primary" whiteLabel />
-        {/* Report generation isn't built; for now this ends the guided-scan flow
-            back at Home. `push`, not `replace` — the results screen stays in
-            history so Back returns here. Same Stroke-fill style as "Remind me". */}
         <Button
           variant="surface"
-          className="bg-border text-foreground-secondary shadow-none"
-          onClick={() => router.push(ROUTES.home)}
+          className="bg-border text-foreground shadow-none"
+          onClick={() => router.push(ROUTES.patient.scanReport)}
         >
-          Generate Report
+          Generate PDF Report
         </Button>
       </div>
     </>
