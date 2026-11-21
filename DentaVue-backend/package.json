@@ -17,7 +17,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "try:gemini": "tsx scripts/tryGemini.ts"
+    "try:gemini": "tsx scripts/tryGemini.ts",
+    "eval": "tsx scripts/evalEngine.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.7",

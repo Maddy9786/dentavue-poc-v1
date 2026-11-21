@@ -1,0 +1,20 @@
+[
+  {
+    "id": "sample-healthy-mouth",
+    "images": [
+      "../../DentaVue-frontend/public/images/mouth-previous.png",
+      "../../DentaVue-frontend/public/images/guide-upper-gums.png",
+      "../../DentaVue-frontend/public/images/guide-tongue.png",
+      "../../DentaVue-frontend/public/images/guide-lower-gums.png"
+    ],
+    "expectedValid": true,
+    "expectedBands": {
+      "gumInflammation": "none",
+      "plaqueExtent": "none",
+      "gumMarginRecession": "none",
+      "enamelWear": "none",
+      "tissueAppearance": "none",
+      "calculusStain": "none"
+    }
+  }
+]
